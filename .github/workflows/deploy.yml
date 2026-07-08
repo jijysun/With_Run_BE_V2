@@ -50,6 +50,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: docker/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE }}:latest
@@ -64,13 +65,14 @@ jobs:
           echo "" >> .env
           echo "APP_IMAGE=${IMAGE}:${{ github.sha }}" >> .env
 
+      # 레포와 같은 구조(~/with_run/docker/docker-compose.yml, ~/with_run/.env)로 복사
       - name: Copy compose & .env to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_KEY }}
-          source: "docker-compose.yml,.env"
+          source: "docker/docker-compose.yml,.env"
           target: ~/with_run
 
       - name: Deploy on EC2
@@ -82,8 +84,8 @@ jobs:
           script: |
             cd ~/with_run
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose pull app
-            docker compose up -d
+            docker compose --env-file .env -f docker/docker-compose.yml pull app
+            docker compose --env-file .env -f docker/docker-compose.yml up -d
             docker image prune -f
 
       - name: Notify Discord (success)
