@@ -178,3 +178,6 @@ service-account*.json
 # 기타 시크릿
 secrets/
 *.secret
+
+### Claude 작업 문서 (로컬 전용) ###
+docs/

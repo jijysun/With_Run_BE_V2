@@ -1,0 +1,49 @@
+# EC2 배포용 Docker Compose
+# 같은 디렉토리의 .env 에서 변수를 읽는다 (.env.example 참고)
+# APP_IMAGE 는 배포 워크플로우가 커밋 SHA 태그로 주입 (없으면 latest)
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/jijysun/with_run_be_v2:latest}
+    container_name: withrun-app
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      # 컨테이너 네트워크 안에서는 서비스 이름으로 접속 (.env의 로컬 값 덮어씀)
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: withrun-redis
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: withrun-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
