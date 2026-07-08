@@ -22,7 +22,8 @@ export const options = {
 export default function () {
     // --- 사전 준비 ---
     const chatId = 40;
-    const authToken = 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmcm9udEBleGFtcGxlLmNvbSIsInJvbGUiOiJST0xFX1VTRVIiLCJpYXQiOjE3NTM4Nzg5NzR9.3pFLt3E32IqDcdfCYMFb95I1WLoFmd4pYkpTgMgV5vs'; // 실제 토큰으로 교체
+    const TOKEN = ''; // 여기에 JWT 토큰 넣기
+    const authToken = `Bearer ${TOKEN}`;
 
     const params = {
         headers: {
