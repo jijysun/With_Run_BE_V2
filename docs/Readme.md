@@ -1,29 +1,29 @@
 # 같이, 달려갈개 ! : 지역 기반 반려견 산책 메이트 [ BE ]
 
-![1.png](./assets/project/1.png)
+![1.png](../assets/project/1.png)
 
 ## 🚀 프로젝트 소개
 
-![2.png](./assets/project/2.png)
+![2.png](../assets/project/2.png)
 
 - [같이, 달려갈개!] 는 반려견 산책 친구 및 산책 코스 추천을 통해 반려견과 더 즐거운 시간을 보낼 수 있도록 돕는 어플리케이션입니다.
 
 ### 🌟 핵심 기능
 
-![3.png](./assets/project/3.png)
+![3.png](../assets/project/3.png)
 
 - 국토교통부 자료를 통한 지역 변경 시스템 구현
 - 산책 스타일이 비슷한 반려견과 매칭
 - Redis Pub/Sub을 활용한 타 사용자와 실시간 채팅 서비스
 - DTO Projection 과 페이징을 활용한 조회 로직 최적화
 
-![4.png](./assets/project/4.png)
+![4.png](../assets/project/4.png)
 
 - 온보딩 시 저장된 산책 스타일을 기반으로 산책 코스 추천
 - 사용자 지정 핀을 통한 산책 코스 저장 및 제작 기능
 - 사용자 지정 핀과 최적 경로에 대한 효율적인 저장
 
-![5.png](./assets/project/5.png)
+![5.png](../assets/project/5.png)
 
 - 공공데이터포털의 CSV 데이터를 사용하여 파싱 및 활용
 
@@ -31,7 +31,7 @@
 
 ### 🛰️ 서버 아키텍쳐
 
-![architecture.png](./assets/project/architecture.png)
+![architecture.png](../assets/project/architecture.png)
 
 ### ✨ 사용 기술 스택
 
