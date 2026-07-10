@@ -20,4 +20,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("Select u.id From User u join UserChat uc on u.id=uc.user.id where uc.chat.id = :chatId")
     List<Long> findAllUserId(@Param("chatId") Long chatId);
+
+    long countByLoginIdStartingWith(String prefix);
+
+    @Query("SELECT u FROM User u WHERE u.loginId LIKE CONCAT(:prefix, '%') AND u.userChatList IS EMPTY ORDER BY u.id")
+    List<User> findUnassignedByLoginIdPrefix(@Param("prefix") String prefix);
 }
