@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class LoadTestDataSeeder implements ApplicationRunner {
 
     private final UserRepository userRepository;
     private final ChatRepository chatRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     @Override
     @Transactional
@@ -99,7 +101,18 @@ public class LoadTestDataSeeder implements ApplicationRunner {
                 chat.addUserChat(userChat);
             }
 
-            chatRepository.save(chat);
+            Chat saved = chatRepository.save(chat);
+
+            // ChatServiceImplV2.createChat/inviteUser와 동일하게, 실제 메시지 처리 로직이
+            // 기대하는 Redis Hash(user:{userId}:{chatId}, chat:{chatId})를 채워둔다.
+            // 이게 없으면 MessageServiceImplV2.chatting()에서 isChatting 조회 시 NPE가 난다.
+            redisTemplate.opsForHash().put("chat:" + saved.getId(), "lastReceivedMsg", "로드테스트 채팅방입니다.");
+            for (User member : members) {
+                String key = "user:" + member.getId() + ":" + saved.getId();
+                redisTemplate.opsForHash().put(key, "isChatting", "false");
+                redisTemplate.opsForHash().put(key, "unReadMsg", "0");
+            }
+
             roomsCreated++;
         }
 
