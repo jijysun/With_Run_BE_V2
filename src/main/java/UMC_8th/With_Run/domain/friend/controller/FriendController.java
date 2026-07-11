@@ -6,7 +6,7 @@ import UMC_8th.With_Run.global.security.jwt.JwtTokenProvider;
 import UMC_8th.With_Run.domain.friend.dto.FriendsResponse;
 import UMC_8th.With_Run.domain.friend.dto.FriendDetailResponse;
 import UMC_8th.With_Run.domain.friend.service.*;
-import UMC_8th.With_Run.friend.service.*;
+import UMC_8th.With_Run.domain.friend.service.*;
 import UMC_8th.With_Run.domain.user.entity.User;
 import UMC_8th.With_Run.domain.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.tags.Tag;

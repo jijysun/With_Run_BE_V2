@@ -6,7 +6,7 @@ import UMC_8th.With_Run.domain.course.dto.CourseDetailResponse;
 import UMC_8th.With_Run.domain.course.dto.CourseResponse;
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
 import UMC_8th.With_Run.domain.course.repository.CourseRepository;
-import UMC_8th.With_Run.course.service.*;
+import UMC_8th.With_Run.domain.course.service.*;
 import UMC_8th.With_Run.domain.course.service.*;
 import UMC_8th.With_Run.domain.user.entity.User;
 import UMC_8th.With_Run.domain.user.repository.UserRepository;
