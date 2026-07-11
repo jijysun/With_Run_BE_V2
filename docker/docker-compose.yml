@@ -7,6 +7,9 @@
 services:
   app:
     image: ${APP_IMAGE:-ghcr.io/jijysun/with_run_be_v2:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: withrun-app
     ports:
       - "8080:8080"
