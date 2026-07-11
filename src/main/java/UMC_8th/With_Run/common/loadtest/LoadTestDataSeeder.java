@@ -9,6 +9,7 @@ import UMC_8th.With_Run.user.entity.User;
 import UMC_8th.With_Run.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,12 +29,14 @@ import java.util.List;
 public class LoadTestDataSeeder implements ApplicationRunner {
 
     private static final String LOGIN_ID_PREFIX = "loadtest_";
-    private static final int TARGET_USER_COUNT = 500;
     private static final int ROOM_CAPACITY = 4;
 
     private final UserRepository userRepository;
     private final ChatRepository chatRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+
+    @Value("${loadtest.seed.user-count:500}")
+    private int targetUserCount;
 
     @Override
     @Transactional
@@ -41,8 +44,8 @@ public class LoadTestDataSeeder implements ApplicationRunner {
         long existingUserCount = userRepository.countByLoginIdStartingWith(LOGIN_ID_PREFIX);
         int createdUserCount = 0;
 
-        if (existingUserCount < TARGET_USER_COUNT) {
-            createdUserCount = createUsers((int) existingUserCount, TARGET_USER_COUNT);
+        if (existingUserCount < targetUserCount) {
+            createdUserCount = createUsers((int) existingUserCount, targetUserCount);
         }
 
         int createdRoomCount = assignRooms();
