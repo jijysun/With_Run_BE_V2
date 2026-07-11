@@ -38,6 +38,7 @@ jwt:
 loadtest:
   seed:
     enabled: ${LOADTEST_SEED_ENABLED:false}
+    user-count: ${LOADTEST_SEED_USER_COUNT:500}
 
 
   server:
