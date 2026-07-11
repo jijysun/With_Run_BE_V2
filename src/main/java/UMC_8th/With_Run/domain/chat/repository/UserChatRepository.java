@@ -27,7 +27,7 @@ public interface UserChatRepository extends JpaRepository<UserChat, Long> {
     List<ChatResponseDTO.GetChatListSQLDTO> getChatList(@Param("userId") Long userId);
 
 
-    @Query("Select new UMC_8th.With_Run.chat.dto.ChatResponseDTO$GetInviteUserDTO (f.targetUser.id, p.name, p.profileImage) " +
+    @Query("Select new UMC_8th.With_Run.domain.chat.dto.ChatResponseDTO$GetInviteUserDTO (f.targetUser.id, p.name, p.profileImage) " +
             "From Follow f " +
             "Join f.targetUser otherU Join otherU.profile p " +
             "where f.user.id = :userId AND f.targetUser.id NOT IN ( " +
