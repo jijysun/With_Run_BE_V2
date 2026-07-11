@@ -182,3 +182,4 @@ secrets/
 ### Claude 작업 문서 — 파일 단위로만 ignore (docs/ 전체는 추적 대상) ###
 docs/DEPLOYMENT_PLAN.md
 docs/개선·고도화 사항.md
+docs/SESSION_SUMMARY.md
