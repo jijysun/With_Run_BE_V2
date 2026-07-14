@@ -57,6 +57,12 @@ public class MessageServiceImplV2 implements MessageService {
     @Value("${chatgpt.api.uri}")
     private String API_URI;
 
+
+    /*
+    * 본격 채팅 메서드
+    * - 쿼리 발생: JWT 인증, User 조회, Chat 조회, UserChatList 조회, MessageRepository.saveAll() = 약 5번
+    * - Redis 접근 발생: 118, 125줄 + stringRedisTemplate.convertAndSend(topic, msg);
+    * */
     @Override
     @Transactional
     public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO) {
