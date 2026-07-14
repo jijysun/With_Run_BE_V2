@@ -43,6 +43,42 @@ public class ChatServiceImplV2 implements ChatService {
     /// followee = 내가 팔로우
     /// follower = 나를 팔로우!
 
+
+    /// 채팅방 관련 메서드
+    @Transactional
+    public List<ChatResponseDTO.BroadcastMsgDTO> enterChat(Long chatId, User user) { // 메세지에 대한 대량의 입출력, MySQL 로는 무겁지 않을까요...
+        UserChat userChat = userChatRepository.findByUser_IdAndChat_Id(user.getId(), chatId).orElseThrow(() -> new ChatHandler(ErrorCode.WRONG_CHAT));
+
+        // 사용자의 읽지 않은 메세지 수 0 + isChatting = true -> redis
+        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "true");
+        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "unReadMsg", "0");
+        return MessageConverter.toChatHistoryDTO(messageRepository.findByChat_Id(chatId), chatId); // join fetch!
+    }
+
+    @Override
+    @Transactional
+    public List<ChatResponseDTO.BroadcastMsgDTO> getChatHistory(Long chatId, Long cursor, User user) { // paging!
+
+        UserChat uc = userChatRepository.findByUser_IdAndChat_Id(user.getId(), chatId).orElseThrow(() -> new ChatHandler(ErrorCode.WRONG_CHAT));
+        uc.setToChatting();
+
+        PageRequest page = PageRequest.of(0, 30);
+
+        if (cursor == null) {
+            List<Message> lastestMessageList = messageRepository.getLastestMessagesByChatId(chatId, uc.getCreatedAt(), page);
+            return MessageConverter.toChatHistoryDTO(lastestMessageList, chatId);
+        } else {
+            List<Message> previousMessageList = messageRepository.getPreviousMessagesByChatId(chatId, uc.getCreatedAt(), cursor, page);
+
+            if (previousMessageList.isEmpty())
+                throw new ChatHandler(ErrorCode.NO_MORE_MESSAGE);
+            return MessageConverter.toChatHistoryDTO(previousMessageList, chatId);
+        }
+    }
+
+    // ---------------------------------------------------------
+    ///
+
     @Transactional(readOnly = true)
     public List<ChatResponseDTO.GetChatListDTO> getChatList(User user) {
         List<ChatResponseDTO.GetChatListSQLDTO> chatList = userChatRepository.getChatList(user.getId());
@@ -240,36 +276,6 @@ public class ChatServiceImplV2 implements ChatService {
         template.convertAndSend("/sub/" + chatId + "/msg", inviteMsg);
     }
 
-    @Transactional
-    public List<ChatResponseDTO.BroadcastMsgDTO> enterChat(Long chatId, User user) { // 메세지에 대한 대량의 입출력, MySQL 로는 무겁지 않을까요...
-        UserChat userChat = userChatRepository.findByUser_IdAndChat_Id(user.getId(), chatId).orElseThrow(() -> new ChatHandler(ErrorCode.WRONG_CHAT));
-
-        // 사용자의 읽지 않은 메세지 수 0 + isChatting = true -> redis
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "true");
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "unReadMsg", "0");
-        return MessageConverter.toChatHistoryDTO(messageRepository.findByChat_Id(chatId), chatId); // join fetch!
-    }
-
-    @Override
-    @Transactional
-    public List<ChatResponseDTO.BroadcastMsgDTO> getChatHistory(Long chatId, Long cursor, User user) { // paging!
-
-        UserChat uc = userChatRepository.findByUser_IdAndChat_Id(user.getId(), chatId).orElseThrow(() -> new ChatHandler(ErrorCode.WRONG_CHAT));
-        uc.setToChatting();
-
-        PageRequest page = PageRequest.of(0, 30);
-
-        if (cursor == null) {
-            List<Message> lastestMessageList = messageRepository.getLastestMessagesByChatId(chatId, uc.getCreatedAt(), page);
-            return MessageConverter.toChatHistoryDTO(lastestMessageList, chatId);
-        } else {
-            List<Message> previousMessageList = messageRepository.getPreviousMessagesByChatId(chatId, uc.getCreatedAt(), cursor, page);
-
-            if (previousMessageList.isEmpty())
-                throw new ChatHandler(ErrorCode.NO_MORE_MESSAGE);
-            return MessageConverter.toChatHistoryDTO(previousMessageList, chatId);
-        }
-    }
 
 
     @Transactional
