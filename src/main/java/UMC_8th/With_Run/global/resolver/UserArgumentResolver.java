@@ -27,6 +27,11 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
         return parameter.getParameterType().equals(User.class);
     }
 
+    /*
+    * 어쨌든 모든 요청에 대해 JWT 인증 + 쿼리 발생
+    * - JWT 캐싱이나, 인증 로직 최적화가 필요
+    * */
+
     @Override
     public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
 
