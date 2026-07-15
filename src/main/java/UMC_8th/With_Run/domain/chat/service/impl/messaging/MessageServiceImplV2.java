@@ -62,22 +62,22 @@ public class MessageServiceImplV2 implements MessageService {
     * 본격 채팅 메서드
     * - 쿼리 발생: JWT 인증, User 조회, Chat 조회, UserChatList 조회, MessageRepository.saveAll() = 약 5번
     * - Redis 접근 발생: 118, 125줄 + stringRedisTemplate.convertAndSend(topic, msg);
+    *
+    * 1. 같이 산책 코스 약속을 잡은 경우, isUpToMeet -> AI
+    * 2. 개인 정보를 보낸 경우, isPrivacy -> 자체 파싱
+    * 3. 이후 추가 약속 고려?, isMeetAgain -> AI
+    * 4. 펫코노미 고려, isPetConomy -> AI
     * */
     @Override
     @Transactional
     public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO) {
         User user = userRepository.findByIdWithProfile(reqDTO.getUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
+
+        /// 메세지 객체 하나만 저장하는데 왜 리스트화 하는 것?
         Message msg = MessageConverter.toMessage(user, chat, reqDTO);
         List<Message> messageList = new ArrayList<>();
         messageList.add(msg);
-
-        /* 채팅 메세지 파싱 사항
-         * 1. 같이 산책 코스 약속을 잡은 경우, isUpToMeet -> AI
-         * 2. 개인 정보를 보낸 경우, isPrivacy -> 자체 파싱
-         * 3. 이후 추가 약속 고려?, isMeetAgain -> AI
-         * 4. 펫코노미 고려, isPetConomy -> AI
-         * */
 
         ///  1. 개인 정보 관련 채팅 분석 코드
         ///  - 미구현 기능이므로 코드 배제
@@ -128,10 +128,11 @@ public class MessageServiceImplV2 implements MessageService {
         redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadDTO);
 
 
-        if (isPrivacy) {
+        /// 기능 제외로 주석 처리
+        /*if (isPrivacy) {
             Message privacyMsg = MessageConverter.toInviteMessage(user, chat, "\uD83D\uDD12 개인정보가 보이는 정보가 메세지로 보내졌어요, 개인정보 유출에 주의해주세요!");
             redisPublisher.publishMsg("redis.chat.msg." + chatId, privacyMsg);
-        }
+        }*/
         /*else if (!gptAnswerDTO.getAnswer().equals("nothing")) {
             PayloadDTO<Object> payloadMeetInfoDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
                     .type("chat")
