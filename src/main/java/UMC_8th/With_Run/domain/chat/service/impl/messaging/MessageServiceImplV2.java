@@ -79,7 +79,9 @@ public class MessageServiceImplV2 implements MessageService {
          * 4. 펫코노미 고려, isPetConomy -> AI
          * */
 
-        GPTDTO.GPTAnswerDTO gptAnswerDTO = new GPTDTO.GPTAnswerDTO();
+        ///  1. 개인 정보 관련 채팅 분석 코드
+        ///  - 미구현 기능이므로 코드 배제
+        /*GPTDTO.GPTAnswerDTO gptAnswerDTO = new GPTDTO.GPTAnswerDTO();
         boolean isPrivacy = false;
 
         List<String> privacy = List.of(
@@ -93,7 +95,7 @@ public class MessageServiceImplV2 implements MessageService {
             isPrivacy = true;
         } else {
 //            gptAnswerDTO = requestToAI(reqDTO);
-        }
+        }*/
 
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
 
