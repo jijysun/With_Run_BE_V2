@@ -97,8 +97,10 @@ public class MessageServiceImplV2 implements MessageService {
 //            gptAnswerDTO = requestToAI(reqDTO);
         }*/
 
-        List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
 
+        ///  2. 안읽은 메세지 기능
+        ///  - 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
+        List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
         userChatList.forEach(userChat -> {
             String key = "user:" + userChat + ":" + chatId;
             String isChatting = redisTemplate.opsForHash().get(key, "isChatting").toString();
@@ -112,7 +114,8 @@ public class MessageServiceImplV2 implements MessageService {
             messageList.add(aiMessage);
         }*/
 
-        // 메세지 저장
+        /// 3. 메세지 저장
+        /// - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
         redisTemplate.opsForHash().put("chat:" + chatId, "lastReceivedMsg", reqDTO.getMessage());
@@ -124,10 +127,12 @@ public class MessageServiceImplV2 implements MessageService {
 
         redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadDTO);
 
+
         if (isPrivacy) {
             Message privacyMsg = MessageConverter.toInviteMessage(user, chat, "\uD83D\uDD12 개인정보가 보이는 정보가 메세지로 보내졌어요, 개인정보 유출에 주의해주세요!");
             redisPublisher.publishMsg("redis.chat.msg." + chatId, privacyMsg);
-        } /*else if (!gptAnswerDTO.getAnswer().equals("nothing")) {
+        }
+        /*else if (!gptAnswerDTO.getAnswer().equals("nothing")) {
             PayloadDTO<Object> payloadMeetInfoDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
                     .type("chat")
                     .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), aiMessage))
