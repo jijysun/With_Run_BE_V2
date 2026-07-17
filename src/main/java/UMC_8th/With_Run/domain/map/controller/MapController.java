@@ -8,9 +8,9 @@ import UMC_8th.With_Run.domain.map.service.CourseService;
 import UMC_8th.With_Run.domain.map.service.MapService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
+//import io.swagger.v3.oas.annotations.Operation;
+//import io.swagger.v3.oas.annotations.Parameter;
+//import io.swagger.v3.oas.annotations.tags.Tag;
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
 import UMC_8th.With_Run.global.exception.GeneralException;
 import UMC_8th.With_Run.global.security.jwt.JwtTokenProvider;
@@ -24,7 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-@Tag(name = "지도 API", description = "Swagger 테스트용 지도 관련 API")
+//@Tag(name = "지도 API", description = "Swagger 테스트용 지도 관련 API")
 @RestController
 @RequestMapping("/api/maps")
 @RequiredArgsConstructor
@@ -36,7 +36,7 @@ public class MapController {
     private final UserRepository userRepository;
 
     // 수정: 위치 정보를 요청 파라미터에 추가했습니다.
-    @Operation(
+/*    @Operation(
             summary = "카테고리 기반 반려동물 시설 검색",
             description = "카테고리와 위치를 기준으로 반려동물 시설을 페이징 형태로 검색합니다. 전체(또는 null) 검색 가능",
             parameters = {
@@ -47,7 +47,7 @@ public class MapController {
                     @Parameter(name = "page", description = "페이지 번호 (0부터 시작, 최소 0)", required = false, example = "0"),
                     @Parameter(name = "size", description = "한 페이지당 항목 수 (1-100)", required = false, example = "20")
             }
-    )
+    )*/
     @GetMapping("/search/categories")
     public StndResponse<MapResponseDTO.PetFacilityPageResponseDto> searchByCategory(
             @RequestParam String type,
@@ -65,13 +65,13 @@ public class MapController {
     }
 
 
-    @Operation(
+/*    @Operation(
             summary = "ID 기반 반려동물 시설 검색",
             description = "ID로 특정 반려동물 시설의 상세 정보를 검색합니다.",
             parameters = {
                     @Parameter(name = "id", description = "조회할 반려동물 시설의 ID", required = true, example = "1")
             }
-    )
+    )*/
     @GetMapping("/search/{id}")
     public StndResponse<MapResponseDTO.PetFacilityResponseDto> getPetFacilityById(@PathVariable Long id) {
         MapResponseDTO.PetFacilityResponseDto facility = mapService.getPetFacilityById(id, null, null, null);
@@ -79,11 +79,11 @@ public class MapController {
     }
 
 
-    @Operation(
+/*    @Operation(
             summary = "핀 생성",
             description = "새로운 핀을 생성합니다.",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "핀 생성 요청 DTO", required = true)
-    )
+    )*/
     @PostMapping("/pin")
     public StndResponse<MapResponseDTO.PinResponseDto> createPin(@RequestBody @Valid MapRequestDTO.PinRequestDto requestDto) {
         Long pinId = mapService.createPin(requestDto);
@@ -95,13 +95,13 @@ public class MapController {
         return StndResponse.onSuccess(responseDto, SuccessCode.REQUEST_SUCCESS);
     }
 
-    @Operation(
+/*    @Operation(
             summary = "핀 단건 조회",
             description = "핀 ID로 특정 핀 정보를 조회합니다.",
             parameters = {
                     @Parameter(name = "pinId", description = "조회할 핀의 ID", required = true, example = "1")
             }
-    )
+    )*/
     @GetMapping("/pin/{pinId}")
     public StndResponse<MapResponseDTO.GetPinDto> getPinById(@PathVariable Long pinId) {
         MapResponseDTO.GetPinDto responseDto = mapService.getPinById(pinId);
@@ -109,13 +109,13 @@ public class MapController {
         return StndResponse.onSuccess(responseDto, SuccessCode.INQUIRY_SUCCESS);
     }
 
-    @Operation(
+/*    @Operation(
             summary = "핀 수정",
             description = "기존 핀 정보를 수정합니다.",
             parameters = {
                     @Parameter(name = "pinId", description = "수정할 핀의 ID", required = true, example = "1")
             }
-    )
+    )*/
     @PatchMapping("/pin/{pinId}")
     public StndResponse<MapResponseDTO.PinResponseDto> updatePin(@PathVariable Long pinId, @RequestBody @Valid MapRequestDTO.PinRequestDto requestDto) {
         Long updatedPinId = mapService.updatePin(pinId, requestDto);
@@ -127,13 +127,13 @@ public class MapController {
         return StndResponse.onSuccess(responseDto, SuccessCode.UPDATE_SUCCESS);
     }
 
-    @Operation(
+/*    @Operation(
             summary = "핀 삭제",
             description = "핀을 삭제합니다.",
             parameters = {
                     @Parameter(name = "pinId", description = "삭제할 핀의 ID", required = true, example = "1")
             }
-    )
+    )*/
     @DeleteMapping("/pin/{pinId}")
     public StndResponse<MapResponseDTO.PinResponseDto> deletePin(@PathVariable Long pinId) {
         Long deletedPinId = mapService.deletePin(pinId);
@@ -172,11 +172,11 @@ public class MapController {
     }
 */
 
-    @Operation(
+/*    @Operation(
             summary = "산책 코스 생성",
             description = "산책 코스를 등록합니다.",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "산책 코스 생성 요청 DTO", required = true)
-    )
+    )*/
     @PostMapping(value = "/courses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public StndResponse<MapResponseDTO.CourseCreateResponseDto> createCourse(
             @RequestPart("courseCreateRequest") String courseCreateRequestJson,
