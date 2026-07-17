@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@Tag(name = "사용자 API")
+//@Tag(name = "사용자 API")
 public class UserController {
 
     private final UserService userService;
@@ -62,20 +62,20 @@ public class UserController {
     private final MyCourseService myCourseService;
 
     @PostMapping("/login")
-    @Operation(summary = "로그인 API", description = "로그인 API입니다.")
+/*    @Operation(summary = "로그인 API", description = "로그인 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "로그인 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<UserResponseDto.LoginResultDTO> login(@RequestBody LoginRequestDTO request) {
         UserResponseDto.LoginResultDTO dto = userService.login(request);  // request 전달
         return StndResponse.onSuccess(dto, SuccessCode.LOGIN_SUCCESS);
     }
 
     @PostMapping("/profile")
-    @Operation(summary = "반려견 프로필 설정 API", description = "반려견의 프로필 정보를 설정하는 API입니다.")
+/*    @Operation(summary = "반려견 프로필 설정 API", description = "반려견의 프로필 정보를 설정하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "프로필 생성 성공", content = @Content(schema = @Schema(implementation = StndResponse.class))),
-    })
+    })*/
     public StndResponse<BreedProfileRequestDTO> createBreedProfile(
             @RequestBody BreedProfileRequestDTO requestDTO,
             HttpServletRequest request
@@ -85,7 +85,7 @@ public class UserController {
     }
 
     @PostMapping(value = "/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "프로필 이미지 업로드 API", description = "반려견의 프로필 이미지를 업로드합니다.")
+//    @Operation(summary = "프로필 이미지 업로드 API", description = "반려견의 프로필 이미지를 업로드합니다.")
     public StndResponse<String> uploadProfileImage(
             @ModelAttribute ProfileImageRequest request,
             HttpServletRequest servletRequest
@@ -95,7 +95,7 @@ public class UserController {
     }
 
     @PostMapping("/region")
-    @Operation(summary = "동네 설정 API", description = "사용자의 동네 정보를 설정하는 API입니다.")
+//    @Operation(summary = "동네 설정 API", description = "사용자의 동네 정보를 설정하는 API입니다.")
     public StndResponse<RegionResponseDTO> createRegion(
             @RequestBody @Valid RegionRequestDTO regionRequestDTO,
             HttpServletRequest request) {
@@ -106,10 +106,10 @@ public class UserController {
 
 
     @PatchMapping("/alarm")
-    @Operation(summary = "알림 설정 API", description = "사용자의 전체 알림 수신 여부를 설정하는 API입니다. true로 보내면 켜기, false는 끄기입니다.")
+/*    @Operation(summary = "알림 설정 API", description = "사용자의 전체 알림 수신 여부를 설정하는 API입니다. true로 보내면 켜기, false는 끄기입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<SimpleUserResultDTO> updateAlarmSettings(
             HttpServletRequest request,
             @RequestBody UserRequestDto.UpdateNoticeSettingsDTO updateNoticeSettingsDTO) {
@@ -122,10 +122,10 @@ public class UserController {
     }
 
     @PatchMapping("/")
-    @Operation(summary = "회원 탈퇴 API", description = "JWT 토큰을 바탕으로 본인의 계정을 탈퇴합니다.")
+/*    @Operation(summary = "회원 탈퇴 API", description = "JWT 토큰을 바탕으로 본인의 계정을 탈퇴합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "탈퇴 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<SimpleUserResultDTO> cancelMembership(HttpServletRequest request) {
         userService.cancelMembership(request);
         return StndResponse.onSuccess(
@@ -135,42 +135,42 @@ public class UserController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "로그아웃 API", description = "로그아웃 API입니다.")
+/*    @Operation(summary = "로그아웃 API", description = "로그아웃 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "TestSuccessCode", content = @Content(schema = @Schema(implementation = StndResponse.class)))
     })
     @Parameters({
             @Parameter(name = "userId", description = "사용자 id 입니다.")
-    })
+    })*/
     public SuccessCode logout(){
         return SuccessCode.REQUEST_SUCCESS;
     }
 
     @GetMapping("/profile")
-    @Operation(summary = "프로필 조회 API", description = "사용자의 기본 프로필을 조회하는 API입니다.")
+/*    @Operation(summary = "프로필 조회 API", description = "사용자의 기본 프로필을 조회하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "성공")
-    })
+    })*/
     public StndResponse<ProfileResultDTO> getProfile(HttpServletRequest request){
         UserResponseDto.ProfileResultDTO dto = profileService.getProfileByCurrentUser(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
     }
 
     @GetMapping("/scraps")
-    @Operation(summary = "스크랩 목록 조회 API", description = "사용자의 스크랩 목록을 조회합니다.")
+/*    @Operation(summary = "스크랩 목록 조회 API", description = "사용자의 스크랩 목록을 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<ScrapListResultDTO> getScrapList(HttpServletRequest request) {
         ScrapListResultDTO dto = scrapService.getScrapsByCurrentUser(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
     }
 
     @GetMapping("/likes")
-    @Operation(summary = "좋아요 목록 조회 API", description = "사용자의 좋아요한 코스 목록을 조회합니다.")
+/*    @Operation(summary = "좋아요 목록 조회 API", description = "사용자의 좋아요한 코스 목록을 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<LikeListResultDTO> getLikeList(HttpServletRequest request) {
         LikeListResultDTO dto = likesService.getLikesByCurrentUser(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
@@ -178,10 +178,10 @@ public class UserController {
 
 
     @GetMapping("/courses")
-    @Operation(summary = "내 코스 목록 조회 API", description = "현재 로그인한 사용자가 작성한 코스를 조회하는 API입니다.")
+/*    @Operation(summary = "내 코스 목록 조회 API", description = "현재 로그인한 사용자가 작성한 코스를 조회하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<UserResponseDto.MyCourseListResultDTO> getCourseList(HttpServletRequest request) {
         UserResponseDto.MyCourseListResultDTO dto = myCourseService.getMyCourses(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
@@ -189,20 +189,20 @@ public class UserController {
 
 
     @GetMapping("/followers")
-    @Operation(summary = "팔로워 목록 조회 API", description = "나를 팔로우한 사용자 목록(팔로워 리스트)을 반환합니다.")
+/*    @Operation(summary = "팔로워 목록 조회 API", description = "나를 팔로우한 사용자 목록(팔로워 리스트)을 반환합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<FollowerListResultDTO> getFollowerList(HttpServletRequest request) {
         FollowerListResultDTO dto = followService.getFollowerList(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
     }
 
     @GetMapping("/followings")
-    @Operation(summary = "팔로우 목록 조회 API", description = "현재 사용자의 팔로잉 목록을 조회합니다.")
+/*    @Operation(summary = "팔로우 목록 조회 API", description = "현재 사용자의 팔로잉 목록을 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<FollowingListResultDTO> getFollowingList(HttpServletRequest request) {
         FollowingListResultDTO dto = followService.getFollowingList(request);
         return StndResponse.onSuccess(dto, SuccessCode.INQUIRY_SUCCESS);
@@ -210,10 +210,10 @@ public class UserController {
 
 
     @DeleteMapping("/followings/{following_id}")
-    @Operation(summary = "팔로잉 취소 API", description = "사용자가 팔로우를 취소하는 API입니다.")
+/*    @Operation(summary = "팔로잉 취소 API", description = "사용자가 팔로우를 취소하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "요청 성공")
-    })
+    })*/
     public StndResponse<SimpleUserResultDTO> cancelFollowing(
             @PathVariable("following_id") Long followingId,
             HttpServletRequest request
@@ -227,10 +227,10 @@ public class UserController {
 
 
     @DeleteMapping("/followers/{follower_id}")
-    @Operation(summary = "팔로워 삭제 API", description = "사용자의 팔로워를 삭제하는 API입니다.")
+/*    @Operation(summary = "팔로워 삭제 API", description = "사용자의 팔로워를 삭제하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<SimpleUserResultDTO> deleteFollower(
             @PathVariable("follower_id") Long followerId,
             HttpServletRequest request
@@ -244,10 +244,10 @@ public class UserController {
 
 
     @PatchMapping("/profile")
-    @Operation(summary = "프로필 수정 API", description = "사용자의 프로필을 수정하는 API입니다.")
+/*    @Operation(summary = "프로필 수정 API", description = "사용자의 프로필을 수정하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<UpdateProfileDTO> updateProfile(
             @RequestBody UpdateProfileDTO updateProfileDTO,
             HttpServletRequest request
@@ -258,10 +258,10 @@ public class UserController {
 
 
     @PatchMapping("/courses/{course_id}")
-    @Operation(summary = "코스 수정 API", description = "사용자의 코스를 수정하는 API입니다.")
+/*    @Operation(summary = "코스 수정 API", description = "사용자의 코스를 수정하는 API입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(schema = @Schema(implementation = StndResponse.class)))
-    })
+    })*/
     public StndResponse<UpdateCourseDTO> updateCourse(
             @PathVariable("course_id") Long courseId,
             @RequestBody UpdateCourseDTO updateCourseDTO
