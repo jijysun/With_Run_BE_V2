@@ -57,10 +57,33 @@ services:
       retries: 12
     restart: unless-stopped
 
-  grafana:
-
   prometheus:
+    image: prom/prometheus:latest
+    container_name: withrun-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: withrun-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 
 volumes:
   mysql-data:
+  prometheus-data:
+  grafana-data:
