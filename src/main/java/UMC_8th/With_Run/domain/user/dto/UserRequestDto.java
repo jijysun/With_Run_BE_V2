@@ -93,7 +93,7 @@ public class UserRequestDto {
     @Getter
     @Setter
     public static class ProfileImageRequest {
-        @Schema(description = "프로필 이미지 파일", type = "string", format = "binary")
+//        @Schema(description = "프로필 이미지 파일", type = "string", format = "binary")
         private MultipartFile file;
     }
 
