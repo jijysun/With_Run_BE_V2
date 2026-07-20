@@ -57,5 +57,10 @@ services:
       retries: 12
     restart: unless-stopped
 
+  grafana:
+
+  prometheus:
+
+
 volumes:
   mysql-data:
