@@ -36,7 +36,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(
                         (requests) -> requests
-                                .requestMatchers("/", "api/users/login", "/api/region/**", "/api/course/nearby/**", "/api/course/rising/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/ws/**").permitAll()
+                                .requestMatchers("/", "api/users/login", "/api/region/**", "/api/course/nearby/**", "/api/course/rising/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/ws/**", "/actuator/**").permitAll()
                                 .requestMatchers("/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
                 )
