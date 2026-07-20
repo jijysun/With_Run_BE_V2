@@ -1,19 +1,19 @@
 package UMC_8th.With_Run.global.config;
 
-import io.swagger.v3.oas.models.Components;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
+//import io.swagger.v3.oas.models.Components;
+//import io.swagger.v3.oas.models.OpenAPI;
+//import io.swagger.v3.oas.models.info.Info;
+//import io.swagger.v3.oas.models.security.SecurityRequirement;
+//import io.swagger.v3.oas.models.security.SecurityScheme;
+//import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+//@Configuration
 public class SwaggerConfig {
 
-    @Bean
-    public OpenAPI WithRunAPI() {
+//    @Bean
+    /*public OpenAPI WithRunAPI() {
         Info info = new Info()
                 .title("WithRun Server API")
                 .description("WithRun Server API 명세서")
@@ -35,5 +35,5 @@ public class SwaggerConfig {
                 .info(info)
                 .addSecurityItem(securityRequirement)
                 .components(components);
-    }
+    }*/
 }
