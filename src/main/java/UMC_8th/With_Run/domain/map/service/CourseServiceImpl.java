@@ -1,7 +1,7 @@
 package UMC_8th.With_Run.domain.map.service;
 
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
-import UMC_8th.With_Run.global.config.s3.S3Uploader;
+//import UMC_8th.With_Run.global.config.s3.S3Uploader;
 import UMC_8th.With_Run.global.exception.handler.MapHandler;
 import UMC_8th.With_Run.domain.course.entity.Course;
 import UMC_8th.With_Run.domain.course.repository.CourseRepository;
@@ -39,7 +39,7 @@ public class CourseServiceImpl implements CourseService {
     private final RegionsTownRepository regionsTownRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final S3Uploader s3Uploader;
+//    private final S3Uploader s3Uploader;
 
     @Override
     @Transactional
@@ -148,11 +148,11 @@ public class CourseServiceImpl implements CourseService {
 
         String courseImageUrl = null;
         if (courseImageFile != null && !courseImageFile.isEmpty()) {
-            try {
+/*            try {
                 courseImageUrl = s3Uploader.upload(courseImageFile, "courses");
             } catch (IOException e) {
                 throw new RuntimeException(e);
-            }
+            }*/
         }
         Course course = Course.builder()
                 .name(requestDto.getName())

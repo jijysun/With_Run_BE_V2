@@ -1,7 +1,7 @@
 package UMC_8th.With_Run.domain.user.service;
 
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
-import UMC_8th.With_Run.global.config.s3.S3Uploader;
+//import UMC_8th.With_Run.global.config.s3.S3Uploader;
 import UMC_8th.With_Run.global.exception.handler.UserHandler;
 import UMC_8th.With_Run.global.security.jwt.JwtTokenProvider;
 import UMC_8th.With_Run.domain.map.entity.RegionProvince;
@@ -37,7 +37,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final RegionTownRepository townRepository;
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
-    private final S3Uploader s3Uploader;
+//    private final S3Uploader s3Uploader;
 
     @Override
     public UserResponseDto.ProfileResultDTO getProfileByCurrentUser(HttpServletRequest request){
@@ -198,13 +198,13 @@ public class ProfileServiceImpl implements ProfileService {
 
 
         String oldImageUrl = profile.getProfileImage();
-        if (oldImageUrl != null && !oldImageUrl.isBlank()) {
+/*        if (oldImageUrl != null && !oldImageUrl.isBlank()) {
             String s3Key = s3Uploader.extractKeyFromUrl(oldImageUrl);
             s3Uploader.fileDelete(s3Key);
         }
 
         String profileUrl = s3Uploader.upload(file, "profile");
-        profile.setProfileImage(profileUrl);
+        profile.setProfileImage(profileUrl);*/
         profile.setUpdatedAt(LocalDateTime.now());
 
         profileRepository.save(profile);
