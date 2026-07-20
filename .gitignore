@@ -149,7 +149,7 @@ gradle-app.setting
 *.env
 .env
 .env.*
-.env.example
+!.env.example
 # End of https://www.toptal.com/developers/gitignore/api/gradle,java,intellij+all
 
 ### 보안 민감 파일 (Security-sensitive files) ###
