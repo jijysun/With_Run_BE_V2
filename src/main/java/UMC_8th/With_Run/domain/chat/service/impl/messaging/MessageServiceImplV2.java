@@ -24,6 +24,9 @@ import UMC_8th.With_Run.domain.user.entity.User;
 import UMC_8th.With_Run.domain.user.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +53,7 @@ public class MessageServiceImplV2 implements MessageService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RedisTemplate<String, Object> redisTemplate;
+    private final MeterRegistry meterRegistry;
 
     @Value("${chatgpt.api.key}")
     private String API_KEY;
@@ -71,6 +75,11 @@ public class MessageServiceImplV2 implements MessageService {
     @Override
     @Transactional
     public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO) {
+        // 서버 사이드 순수 처리시간( 수신 ~ Redis publish 완료)만 측정
+        // — 클라이언트-서버 왕복(k6 correlation ID)과 구분해서, 병목이 서버 처리 자체인지 네트워크 왕복인 지 확인할 수 있게끔.
+        // chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
+        Timer.Sample sample = Timer.start(meterRegistry);
+
         User user = userRepository.findByIdWithProfile(reqDTO.getUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
 
@@ -127,6 +136,13 @@ public class MessageServiceImplV2 implements MessageService {
 
         redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadDTO);
 
+        Counter.builder("chat_messages_sent_total")
+                .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 채팅 메시지 수")
+                .register(meterRegistry)
+                .increment();
+        sample.stop(Timer.builder("chat_message_processing_seconds")
+                .description("chatting() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
+                .register(meterRegistry));
 
         /// 기능 제외로 주석 처리
         /*if (isPrivacy) {
