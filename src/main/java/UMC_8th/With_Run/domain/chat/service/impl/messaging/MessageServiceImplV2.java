@@ -80,9 +80,10 @@ public class MessageServiceImplV2 implements MessageService {
      * - chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
      *
      * 문제사항
-     * - RaceCondition: 두 사용자 -> 다른 친구 동시 초대 시 정원 초과 가능.
+     * - RaceCondition1: 두 사용자 -> 다른 친구 동시 초대 시 정원 초과 가능.
+     * - RaceCondition2: 읽지 않은 메시지 카운팅 -> redisTemplate.opsForHash().get(key, "isChatting").toString()이 Null일 경우 NPE 발생
      * - 안읽은 메시지 처리 기능: userChatRepository.findAllByChat_Id(chatId) 만큼 Redis Hash가 발생.
-     * -
+     * - RaceConditions3: ChatService.createChat()에 대한 RC 발생 (정확히는 LostUpdate가 발생하지 않을까?)
      *
      *
      * @param chatId
