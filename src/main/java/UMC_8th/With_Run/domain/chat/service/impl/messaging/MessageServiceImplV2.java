@@ -62,16 +62,33 @@ public class MessageServiceImplV2 implements MessageService {
     private String API_URI;
 
 
-    /*
-    * 본격 채팅 메서드
-    * - 쿼리 발생: JWT 인증, User 조회, Chat 조회, UserChatList 조회, MessageRepository.saveAll() = 약 5번
-    * - Redis 접근 발생: 118, 125줄 + stringRedisTemplate.convertAndSend(topic, msg);
-    *
-    * 1. 같이 산책 코스 약속을 잡은 경우, isUpToMeet -> AI
-    * 2. 개인 정보를 보낸 경우, isPrivacy -> 자체 파싱
-    * 3. 이후 추가 약속 고려?, isMeetAgain -> AI
-    * 4. 펫코노미 고려, isPetConomy -> AI
-    * */
+    /**
+     *
+     * 본격 채팅 메서드
+     * - 쿼리 발생: JWT 인증, User 조회, Chat 조회, UserChatList 조회, MessageRepository.saveAll() = 약 5번
+     * - Redis 접근 발생: 118, 125줄 + stringRedisTemplate.convertAndSend(topic, msg);
+     *
+     * 추가 예정 기능
+     * 1. 같이 산책 코스 약속을 잡은 경우, isUpToMeet -> AI
+     * 2. 개인 정보를 보낸 경우, isPrivacy -> 자체 파싱
+     * 3. 이후 추가 약속 고려?, isMeetAgain -> AI
+     * 4. 펫코노미 고려, isPetConomy -> AI
+     *
+     * 특이사항
+     * - 서버 사이드 순수 처리시간( 수신 ~ Redis publish 완료)만 측정
+     * - 클라이언트-서버 왕복(k6 correlation ID)과 구분해서, 병목이 서버 처리 자체인지 네트워크 왕복인 지 확인할 수 있게끔.
+     * - chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
+     *
+     * 문제사항
+     * - RaceCondition1: 두 사용자 -> 다른 친구 동시 초대 시 정원 초과 가능.
+     * - RaceCondition2: 읽지 않은 메시지 카운팅 -> redisTemplate.opsForHash().get(key, "isChatting").toString()이 Null일 경우 NPE 발생
+     * - 안읽은 메시지 처리 기능: userChatRepository.findAllByChat_Id(chatId) 만큼 Redis Hash가 발생.
+     * - RaceConditions3: ChatService.createChat()에 대한 RC 발생 (정확히는 LostUpdate가 발생하지 않을까?)
+     *
+     *
+     * @param chatId
+     * @param reqDTO
+     */
     @Override
     @Transactional
     public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO, String authenticatedEmail) {
@@ -90,43 +107,22 @@ public class MessageServiceImplV2 implements MessageService {
         List<Message> messageList = new ArrayList<>();
         messageList.add(msg);
 
-        ///  1. 개인 정보 관련 채팅 분석 코드
-        ///  - 미구현 기능이므로 코드 배제
-        /*GPTDTO.GPTAnswerDTO gptAnswerDTO = new GPTDTO.GPTAnswerDTO();
-        boolean isPrivacy = false;
 
-        List<String> privacy = List.of(
-                "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b", // Email
-                "\\b010[- ]?\\d{4}[- ]?\\d{4}\\b", // Phone
-                "(?:[가-힣]+(시|도)\\s*)?[가-힣]+(시|군|구)\\s*[가-힣0-9]+(읍|면|동|리)\\s*\\d+(?:-\\d+)?번?지?" // Address
-        );
-
-        if (privacy.stream()
-                .anyMatch(pattern -> reqDTO.getMessage().matches(pattern))) {
-            isPrivacy = true;
-        } else {
-//            gptAnswerDTO = requestToAI(reqDTO);
-        }*/
-
-
-        ///  2. 안읽은 메세지 기능
-        ///  - 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
+        // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
         userChatList.forEach(userChat -> {
             String key = "user:" + userChat + ":" + chatId;
+
+            /// 채팅방 참여자 만큼 RedisHash 접근 발생.
             String isChatting = redisTemplate.opsForHash().get(key, "isChatting").toString();
             if (isChatting.equals("false")) {
                 redisTemplate.opsForHash().increment(key, "unReadMsg", 1);
             }
         });
 
-        /*Message aiMessage = MessageConverter.toInviteMessage(user, chat, gptAnswerDTO.getMessage());
-        if (! gptAnswerDTO.getAnswer().isEmpty()|| !gptAnswerDTO.getAnswer().equals("nothing") || !gptAnswerDTO.getMessage().isEmpty()) {
-            messageList.add(aiMessage);
-        }*/
 
-        /// 3. 메세지 저장
-        /// - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
+        // 3. 메세지 저장
+        // - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
         redisTemplate.opsForHash().put("chat:" + chatId, "lastReceivedMsg", reqDTO.getMessage());
@@ -145,19 +141,6 @@ public class MessageServiceImplV2 implements MessageService {
         sample.stop(Timer.builder("chat_message_processing_seconds")
                 .description("chatting() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
                 .register(meterRegistry));
-
-        /// 기능 제외로 주석 처리
-        /*if (isPrivacy) {
-            Message privacyMsg = MessageConverter.toInviteMessage(user, chat, "\uD83D\uDD12 개인정보가 보이는 정보가 메세지로 보내졌어요, 개인정보 유출에 주의해주세요!");
-            redisPublisher.publishMsg("redis.chat.msg." + chatId, privacyMsg);
-        }*/
-        /*else if (!gptAnswerDTO.getAnswer().equals("nothing")) {
-            PayloadDTO<Object> payloadMeetInfoDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
-                    .type("chat")
-                    .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), aiMessage))
-                    .build();
-            redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadMeetInfoDTO);
-        }*/
     }
 
     private GPTDTO.GPTAnswerDTO requestToAI(ChatRequestDTO.ChattingReqDTO reqDTO) {
