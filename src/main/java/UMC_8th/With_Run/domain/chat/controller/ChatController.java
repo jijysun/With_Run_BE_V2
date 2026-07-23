@@ -24,6 +24,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @Slf4j
@@ -128,8 +129,12 @@ public class ChatController {
     @MessageMapping("/{chatId}/msg")
 /*    @Operation(summary = "메세징 API", description = "실질적인 채팅 API 입니다.")
     @ApiResponse(responseCode = "CHAT2008", content = @Content(schema = @Schema(implementation = ChatResponseDTO.BroadcastMsgDTO.class)))*/
-    public StndResponse<Object> chattingWithRedis(@DestinationVariable ("chatId") Long chatId, @Payload ChatRequestDTO.ChattingReqDTO reqDTO) {
-        messageService.chatting(chatId, reqDTO);
+    public StndResponse<Object> chattingWithRedis(@DestinationVariable ("chatId") Long chatId,
+                                                   @Payload ChatRequestDTO.ChattingReqDTO reqDTO,
+                                                   Principal principal) {
+        // principal == StompChannelInterceptor가 CONNECT 시점에 검증해 세션에 심어둔 Authentication.
+        // getName()은 JWT의 sub(email) — reqDTO.getUserId()는 클라이언트 위조가 가능
+        messageService.chatting(chatId, reqDTO, principal.getName());
 //        messageServiceImpl.chattingWithChatGPT(chatId, reqDTO);
         return StndResponse.onSuccess(null, SuccessCode.CHATTING_SUCCESS);
     }
