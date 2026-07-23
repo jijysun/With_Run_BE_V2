@@ -183,7 +183,7 @@ secrets/
 docs/DEPLOYMENT_PLAN.md
 docs/IMPROVEMENT_PLAN.md
 docs/SESSION_SUMMARY.md
-docs/*.md
+docs/
 
 ### k6 부하테스트 산출물 — 재추출 가능한 로컬 전용 데이터/작업 노트 (스크립트 .js는 추적 대상) ###
 src/test/k6/result/

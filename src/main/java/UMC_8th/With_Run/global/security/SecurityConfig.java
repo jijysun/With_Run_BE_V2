@@ -36,7 +36,12 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(
                         (requests) -> requests
-                                .requestMatchers("/", "api/users/login", "/api/region/**", "/api/course/nearby/**", "/api/course/rising/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/ws/**", "/actuator/**").permitAll()
+                                .requestMatchers("/", "api/users/login", "/api/region/**", "/api/course/nearby/**",
+                                        "/api/course/rising/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                                // WebSocket handshake(HTTP Upgrade 요청) 자체는 permitAll 유지.
+                                // 실제 인증: handshake 이후 STOMP CONNECT 프레임 단계에서 ChannelInterceptor로 검증 예정
+                                .requestMatchers("/api/ws/**").permitAll()
+                                .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                                 .requestMatchers("/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
                 )
@@ -54,7 +59,7 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setExposedHeaders(List.of("Authorization"));
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(false); //순수 Bearer 토큰 인증이라 credentials 해서 끔
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
