@@ -74,13 +74,15 @@ public class MessageServiceImplV2 implements MessageService {
     * */
     @Override
     @Transactional
-    public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO) {
+    public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO, String authenticatedEmail) {
         // 서버 사이드 순수 처리시간( 수신 ~ Redis publish 완료)만 측정
         // — 클라이언트-서버 왕복(k6 correlation ID)과 구분해서, 병목이 서버 처리 자체인지 네트워크 왕복인 지 확인할 수 있게끔.
         // chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
         Timer.Sample sample = Timer.start(meterRegistry);
 
-        User user = userRepository.findByIdWithProfile(reqDTO.getUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+        // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회
+        // = userId 위조 가능
+        User user = userRepository.findByEmailWithProfile(authenticatedEmail).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
 
         /// 메세지 객체 하나만 저장하는데 왜 리스트화 하는 것?
