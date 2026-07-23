@@ -1,6 +1,9 @@
 package UMC_8th.With_Run.global.config.web;
 
+import UMC_8th.With_Run.global.security.jwt.StompChannelInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -8,10 +11,14 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     // WebSocket 통신 설정 파일
     // 이후 Common/config로 옮길 예정입니다.
+
+    // STOMP CONNECT 프레임 인증용 인터셉터(아래 configureClientInboundChannel에서 등록)
+    private final StompChannelInterceptor stompChannelInterceptor;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -28,5 +35,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.enableSimpleBroker("/sub");
         registry.setApplicationDestinationPrefixes("/pub");
 
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        // 클라이언트 → 서버로 들어오는 모든 STOMP 프레임(CONNECT/SUBSCRIBE/SEND)이 이 채널을 거친다.
+        // StompChannelInterceptor가 CONNECT 프레임에서만 JWT를 검증하고 세션에 Principal을 심는다.
+        registration.interceptors(stompChannelInterceptor);
     }
 }
