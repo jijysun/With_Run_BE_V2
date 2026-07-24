@@ -16,14 +16,9 @@ services:
       - "8080:8080"
     env_file: ../.env
     environment:
-      # 컨테이너 네트워크 안에서는 서비스 이름으로 접속 (.env의 로컬 값 덮어씀)
-      DB_HOST: mysql
-      DB_PORT: "3306"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_started
     restart: unless-stopped
@@ -42,27 +37,28 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
-  mysql:
-    image: mysql:8.4
-    container_name: withrun-mysql
-    networks:
-      - with_run_network
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      TZ: Asia/Seoul
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    restart: unless-stopped
+  # RDS로 대체하며 제거(2026-07-24).
+  # mysql:
+  #   image: mysql:8.4
+  #   container_name: withrun-mysql
+  #   networks:
+  #     - with_run_network
+  #   ports:
+  #     - "3306:3306"
+  #   environment:
+  #     MYSQL_DATABASE: ${DB_NAME}
+  #     MYSQL_USER: ${DB_USERNAME}
+  #     MYSQL_PASSWORD: ${DB_PASSWORD}
+  #     MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+  #     TZ: Asia/Seoul
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 12
+  #   restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -97,7 +93,7 @@ services:
 
 
 volumes:
-  mysql-data:
+  # mysql-data:  # RDS로 대체하며 제거
   redis-data:
   prometheus-data:
   grafana-data:
