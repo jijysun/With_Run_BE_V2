@@ -1,9 +1,3 @@
-# EC2 배포용 Docker Compose
-# .env 는 레포 루트에 위치 (.env.example 참고)
-# 실행은 레포 루트에서:
-#   docker compose --env-file .env -f docker/docker-compose.yml up -d
-# APP_IMAGE 는 배포 워크플로우가 커밋 SHA 태그로 주입 (없으면 latest)
-
 networks:
   with_run_network:
     name: with_run_network
@@ -84,9 +78,11 @@ services:
       - app
     restart: unless-stopped
 
+  # 켜고 싶을 때만 docker compose --env-file .env -f docker/docker-compose.yml --profile monitoring up -d
   grafana:
     image: grafana/grafana:latest
     container_name: withrun-grafana
+    profiles: ["monitoring"]
     networks:
       - with_run_network
     ports:
@@ -97,7 +93,7 @@ services:
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
-    restart: unless-stopped
+    restart: "no"
 
 
 volumes:
