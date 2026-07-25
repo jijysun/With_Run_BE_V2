@@ -22,7 +22,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         // 1. 들어온 메시지가 STOMP 커맨드(CONNECT/SUBSCRIBE/SEND/DISCONNECT) 확인
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         // 2. CONNECT 프레임 검증
         // - SUBSCRIBE/SEND는 검증 X = 3~5번인 CONNECT 시점의 세션에 심어둔 Principal이 같은 커넥션의 이후 모든 프레임에 자동으로 연결!
