@@ -149,7 +149,7 @@ gradle-app.setting
 *.env
 .env
 .env.*
-!.env.example
+.env.example
 # End of https://www.toptal.com/developers/gitignore/api/gradle,java,intellij+all
 
 ### 보안 민감 파일 (Security-sensitive files) ###
@@ -178,3 +178,14 @@ service-account*.json
 # 기타 시크릿
 secrets/
 *.secret
+
+### Claude 작업 문서 — 파일 단위로만 ignore (docs/ 전체는 추적 대상) ###
+docs/DEPLOYMENT_PLAN.md
+docs/IMPROVEMENT_PLAN.md
+docs/SESSION_SUMMARY.md
+docs/CLAUDE_INIT.md
+docs/*.html
+
+### k6 부하테스트 산출물 — 재추출 가능한 로컬 전용 데이터/작업 노트 (스크립트 .js는 추적 대상) ###
+src/test/k6/result/
+src/test/k6/analysis/

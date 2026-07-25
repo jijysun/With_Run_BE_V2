@@ -1,0 +1,222 @@
+# =====================================================================
+# 자동 배포: main 푸시 → Docker 이미지 빌드(GHCR) → EC2에 compose 배포
+#            → 디스코드로 성공/실패 알림
+# ---------------------------------------------------------------------
+# ★ 필요한 GitHub Secrets (Settings > Secrets and variables > Actions)
+#
+#   EC2_HOST            : EC2 퍼블릭 IP 또는 도메인
+#   EC2_USERNAME        : SSH 접속 유저 (보통 ubuntu)
+#   EC2_KEY             : SSH 접속용 PEM 키 전문 (-----BEGIN ... 포함)
+#   ENV_FILE            : 운영 .env 파일 전문 (.env.example 참고해 작성)
+#   DISCORD_WEBHOOK_URL : 배포 성공/실패 알림용 디스코드 웹훅 URL
+#
+#   GHCR(컨테이너 레지스트리) 인증은 GITHUB_TOKEN이 자동 사용되므로
+#   별도 시크릿이 필요 없다.
+# =====================================================================
+name: Deploy to EC2 (Docker Compose)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ===================== 1. 이미지 빌드 & GHCR 푸시 =====================
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # GHCR 이미지 이름은 소문자만 허용되므로 레포 이름을 소문자로 변환
+      - name: Set image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ========================= 2. EC2 배포 =========================
+  ec2-deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    outputs:
+      start_time: ${{ steps.start.outputs.start_time }}
+      ram_avail: ${{ steps.resources.outputs.ram_avail }}
+      swap_used: ${{ steps.resources.outputs.swap_used }}
+
+    steps:
+      - name: Record Start Time
+        id: start
+        run: echo "start_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      # 운영 .env 생성 + 이번 커밋 SHA 이미지를 compose가 쓰도록 주입
+      - name: Generate .env
+        run: |
+          printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
+          echo "" >> .env
+          echo "APP_IMAGE=${IMAGE}:${{ github.sha }}" >> .env
+
+      # 레포와 같은 구조(~/with_run/docker/docker-compose.yml, ~/with_run/.env)로 복사
+      - name: Copy compose & .env to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "docker/docker-compose.yml,.env"
+          target: ~/with_run
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd ~/with_run
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose --env-file .env -f docker/docker-compose.yml pull app
+            docker compose --env-file .env -f docker/docker-compose.yml up -d
+            docker image prune -f
+
+      # 알림에 실을 서버 리소스 수집
+      - name: Collect EC2 Resources
+        id: resources
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > ec2_key.pem
+          chmod 400 ec2_key.pem
+          RAM=$(ssh -o StrictHostKeyChecking=no -i ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "free -h | awk '/^Mem:/{print \$7}'")
+          SWAP=$(ssh -o StrictHostKeyChecking=no -i ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "free -h | awk '/^Swap:/{print \$3}'")
+          echo "ram_avail=${RAM:-N/A}" >> "$GITHUB_OUTPUT"
+          echo "swap_used=${SWAP:-N/A}" >> "$GITHUB_OUTPUT"
+          rm -f ec2_key.pem
+
+  # ===================== 3. 디스코드 알림 =====================
+  notify:
+    needs: [build-and-push, ec2-deploy]
+    runs-on: ubuntu-latest
+    if: always()  # 성공/실패/취소 무관
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      COMMIT_SHA: ${{ github.sha }}
+      COMMIT_MSG: ${{ github.event.head_commit.message }}
+      AUTHOR: ${{ github.actor }}
+      BRANCH: ${{ github.ref_name }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+      # 실패 시 멘션할 역할 ID — 본인 서버의 역할 ID로 교체 (멘션 불필요하면 빈 값 "")
+      ROLE_MENTION: "<@&1508662908685385 728>"
+    steps:
+      - name: Calculate Duration
+        id: duration
+        run: |
+          START=${{ needs.ec2-deploy.outputs.start_time }}
+          END=$(date +%s)
+          START=${START:-$END}  # 배포 job이 시작 전 취소된 경우 방어
+          DIFF=$((END - START))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          if [ $MIN -eq 0 ]; then
+            echo "time=${SEC}초" >> $GITHUB_OUTPUT
+          else
+            echo "time=${MIN}분 ${SEC}초" >> $GITHUB_OUTPUT
+          fi
+
+      - name: discord — success
+        if: needs.ec2-deploy.result == 'success'
+        run: |
+          COMMIT_MSG="${COMMIT_MSG:-manual run}"  # workflow_dispatch면 커밋 메시지 없음
+          payload=$(jq -n \
+            --arg sha "${COMMIT_SHA:0:7}" \
+            --arg msg "$COMMIT_MSG" \
+            --arg url "$RUN_URL" \
+            --arg curl "$COMMIT_URL" \
+            --arg author "$AUTHOR" \
+            --arg branch "$BRANCH" \
+            --arg duration "${{ steps.duration.outputs.time }}" \
+            --arg mem "RAM Avail ${{ needs.ec2-deploy.outputs.ram_avail }} / SWAP Used ${{ needs.ec2-deploy.outputs.swap_used }}" \
+            '{embeds: [{
+              title: "With_Run V2 배포 성공",
+              color: 5763719,
+              fields: [
+                {name: "브랜치", value: $branch, inline: true},
+                {name: "작성자", value: $author, inline: true},
+                {name: "커밋", value: "[\( $sha )](\( $curl ))", inline: true},
+                {name: "메시지", value: $msg, inline: false},
+                {name: "소요 시간", value: $duration, inline: true},
+                {name: "서버 리소스", value: $mem, inline: true},
+                {name: "Actions 로그", value: "[바로가기](\( $url ))", inline: false}
+              ],
+              footer: {text: "With_Run V2 Production Environment"}
+            }]}')
+          curl -sS -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
+
+      - name: discord — failure
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        env:
+          BUILD_RESULT: ${{ needs.build-and-push.result }}
+          DEPLOY_RESULT: ${{ needs.ec2-deploy.result }}
+        run: |
+          COMMIT_MSG="${COMMIT_MSG:-manual run}"
+          if [ "$BUILD_RESULT" = "failure" ]; then
+            FAILED_STAGE="🚨 빌드 / Docker Push 실패"
+          elif [ "$DEPLOY_RESULT" = "failure" ]; then
+            FAILED_STAGE="🚀 EC2 배포 단계 실패"
+          else
+            FAILED_STAGE="⏹️ 파이프라인 취소됨"
+          fi
+
+          payload=$(jq -n \
+            --arg sha "${COMMIT_SHA:0:7}" \
+            --arg msg "$COMMIT_MSG" \
+            --arg url "$RUN_URL" \
+            --arg curl "$COMMIT_URL" \
+            --arg stage "$FAILED_STAGE" \
+            --arg author "$AUTHOR" \
+            --arg mention "$ROLE_MENTION" \
+            '{
+              content: "\( $mention ) 배포 파이프라인 실패! 즉시 확인 바랍니다.",
+              embeds: [{
+                title: "With_Run V2 배포 실패",
+                color: 15548997,
+                fields: [
+                  {name: "상태", value: $stage, inline: false},
+                  {name: "작성자", value: $author, inline: true},
+                  {name: "커밋", value: "[\( $sha )](\( $curl ))", inline: true},
+                  {name: "메시지", value: $msg, inline: false},
+                  {name: "Actions 로그", value: "[이동하기](\( $url ))", inline: false}
+                ]
+              }]
+            }')
+          curl -sS -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"

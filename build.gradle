@@ -24,31 +24,38 @@ repositories {
 }
 
 dependencies {
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // ← jackson 사용 시
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis' // redis!
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
-	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
-	implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE' //aws s3
-
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis' // redis!
+//	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+//	implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE' //aws s3
 
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
+
+	implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0' // 버전에 따라 다름
+	implementation 'com.mysql:mysql-connector-j' // MySQL 쓴다면
+
 	compileOnly 'org.projectlombok:lombok'
+
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // ← jackson 사용 시
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
 	annotationProcessor 'org.projectlombok:lombok'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0' // 버전에 따라 다름
-	implementation 'com.mysql:mysql-connector-j' // MySQL 쓴다면
+
 
 }
 

@@ -14,8 +14,8 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   jpa:
     properties:
@@ -34,17 +34,33 @@ jwt:
     expiration:
       access: ${JWT_ACCESS_EXPIRATION}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: with-run
+
+# 채팅 부하테스트 시드 러너 — 로컬 부하테스트 실행 시에만 true로 켤 것. 운영에서는 절대 활성화 금지
+loadtest:
+  seed:
+    enabled: ${LOADTEST_SEED_ENABLED:false}
+    user-count: ${LOADTEST_SEED_USER_COUNT:500}
+
 
   server:
     address: 0.0.0.0  # 모든 IP에서 접근 가능하게 설정
 
+# 채팅 서비스 범위 외 — 환경변수 미설정 시에도 부팅되도록 빈 기본값 유지
 cloud:
   aws:
     s3:
-      bucket: ${S3_BUCKET}
+      bucket: ${S3_BUCKET:}
     credentials:
-      access-key: ${S3_ACCESS_KEY}
-      secret-key: ${S3_SECRET_KEY}
+      access-key: ${S3_ACCESS_KEY:}
+      secret-key: ${S3_SECRET_KEY:}
     region:
       static: ap-northeast-2
     stack:
@@ -52,7 +68,7 @@ cloud:
 
 google:
   places:
-    key: ${GOOGLE-API-KEY}
+    key: ${GOOGLE_API_KEY:}
 
 discord:
   webhook:
@@ -60,6 +76,6 @@ discord:
 
 chatgpt:
   api:
-    uri: ${AI_API_URI}
-    key: ${AI_API_KEY}
+    uri: ${AI_API_URI:}
+    key: ${AI_API_KEY:}
 
