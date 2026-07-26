@@ -14,6 +14,10 @@ RUN ./gradlew bootJar --no-daemon -x test
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
+# healthcheck(compose)가 컨테이너 안에서 자체적으로 /actuator/health를 호출하는 데 필요
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd -r spring && useradd -r -g spring spring
 COPY --from=build /app/build/libs/*.jar app.jar
 USER spring

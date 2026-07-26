@@ -136,7 +136,7 @@ jobs:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
       # 실패 시 멘션할 역할 ID — 본인 서버의 역할 ID로 교체 (멘션 불필요하면 빈 값 "")
-      ROLE_MENTION: "<@&1508662908685385 728>"
+      ROLE_MENTION: "<@&1530840895388123246>"
     steps:
       - name: Calculate Duration
         id: duration
