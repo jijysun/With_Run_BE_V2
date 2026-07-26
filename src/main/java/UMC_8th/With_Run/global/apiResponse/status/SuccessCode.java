@@ -37,7 +37,10 @@ public enum SuccessCode implements BaseCode {
     //Map
     CREATE_SUCCESS(HttpStatus.CREATED, "COMMON2006", "핀 생성에 성공했습니다."),
     UPDATE_SUCCESS(HttpStatus.OK, "COMMON2007", "핀 수정에 성공했습니다."),
-    DELETE_SUCCESS(HttpStatus.OK, "COMMON2008", "핀 삭제에 성공했습니다.");
+    DELETE_SUCCESS(HttpStatus.OK, "COMMON2008", "핀 삭제에 성공했습니다."),
+
+    // Observer
+    OBSERVER_TOKEN_ISSUE_SUCCESS(HttpStatus.OK, "OBSERVER2000", "관찰자 토큰 발급에 성공했습니다");
 
 
 
