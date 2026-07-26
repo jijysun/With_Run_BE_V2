@@ -23,7 +23,15 @@ services:
       TZ: Asia/Seoul
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      # MySQL(RDS)은 별도 compose 서비스가 아니라 여기서 체크할 수 없음 —
+      # Actuator의 DB 헬스 인디케이터가 JDBC 연결 성공 여부를 이 /actuator/health 안에 그대로 반영해준다.
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     logging:
       driver: json-file
@@ -40,6 +48,11 @@ services:
       TZ: Asia/Seoul
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # RDS로 대체하며 제거(2026-07-24).
@@ -78,7 +91,8 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
   # Cloudflare Full (Strict) 대응 — 443에서 Origin CA 인증서로 TLS 종단 후 app:8080으로 프록시.
@@ -98,8 +112,15 @@ services:
       # Alpine 베이스 이미지엔 tzdata가 없어 TZ 환경변수만으론 존 이름(예: Asia/Seoul) 해석이 안 될 수 있음 —
       # 호스트(EC2, 보통 tzdata 포함)의 zoneinfo를 그대로 읽기 전용 마운트해서 우회.
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+    healthcheck:
+      # nginx:alpine엔 curl/wget이 없어 busybox 기본 내장 nc로 443 리스닝 여부만 확인(TLS 핸드셰이크까진 검증 안 함)
+      test: ["CMD", "nc", "-z", "localhost", "443"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
   # 켜고 싶을 때만 docker compose --env-file .env -f docker/docker-compose.yml --profile monitoring up -d
