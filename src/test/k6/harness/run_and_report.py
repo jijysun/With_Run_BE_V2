@@ -37,9 +37,15 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
+import os
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
-RESULT_DIR = Path(__file__).resolve().parent.parent / "result"
-ANALYSIS_DIR = Path(__file__).resolve().parent.parent / "analysis"
+# result/analysis는 데스크탑·노트북 세션 불일치 해소를 위해 별도 private 레포(dev_notes)로 이전됨.
+# 기본값은 두 레포가 같은 부모 폴더 아래 형제 디렉터리로 클론되어 있다고 가정(예: Github/With_Run_V2, Github/dev_notes/With_Run_V2).
+# 머신마다 배치가 다르면 DEV_NOTES_DIR 환경변수로 절대경로를 직접 지정해 override 가능.
+_DEV_NOTES_DIR = Path(os.environ["DEV_NOTES_DIR"]) if os.environ.get("DEV_NOTES_DIR") else REPO_ROOT.parent / "dev_notes" / "With_Run_V2"
+RESULT_DIR = _DEV_NOTES_DIR / "result"
+ANALYSIS_DIR = _DEV_NOTES_DIR / "analysis"
 ANALYSIS_FILE = ANALYSIS_DIR / "부하테스트_분석.md"
 
 # result/{YYYYMMDD-HHmm}-{label}.json 형식만 이 하네스가 다룬다(With_Run_Chat_LoadTest_*.js의 handleSummary와 일치).
