@@ -193,10 +193,13 @@ export default function () {
 // --summary-export 플래그는 k6 v0.30.0 이후 deprecated → 공식 권장 방식인 handleSummary() 사용.
 // (참고: https://grafana.com/docs/k6/latest/results-output/end-of-test/custom-summary/)
 // 주의: handleSummary()가 반환하는 파일 경로는 (open()과 달리) k6 실행 시점의 현재 작업 디렉토리(CWD) 기준.
-// 레포 루트에서 k6 run을 실행한다고 가정하고 src/test/k6/result/ 전체 경로를 명시한다.
-// 파일명: src/test/k6/result/{YYYYMMDD-HHmm}-{VU}vu.{txt,json} — 실행 시점과 부하량이 파일명만 봐도 드러나게.
-// txt/json 모두 k6가 생성한 원본 그대로 저장하고, 해석/분석은 여기 담지 않는다 —
-// 해석은 src/test/k6/analysis/ 아래 별도 문서에 정리한다(result/와 analysis/ 둘 다 gitignore 대상).
+// result/analysis가 dev_notes 레포로 이전된 뒤(3671e43)엔 레포 루트 기준 상대경로만으로 못 찾는다 —
+// run_and_report.py가 -e RESULT_DIR=<절대경로>로 넘겨주므로 그 값을 그대로 쓰고, k6를 직접(하네스 없이)
+// 돌릴 때만 기본값(레포 루트 기준 형제 디렉터리 가정)으로 폴백한다.
+// 파일명: {RESULT_DIR}/{YYYYMMDD-HHmm}-{VU}vu.{txt,json} — 실행 시점과 부하량이 파일명만 봐도 드러나게.
+// txt/json 모두 k6가 생성한 원본 그대로 저장하고, 해석/분석은 여기 담지 않는다.
+const RESULT_DIR = __ENV.RESULT_DIR || '../dev_notes/With_Run_V2/result';
+
 function timestamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -204,7 +207,7 @@ function timestamp() {
 }
 
 export function handleSummary(data) {
-  const base = `src/test/k6/result/${timestamp()}-${LABEL}`;
+  const base = `${RESULT_DIR}/${timestamp()}-${LABEL}`;
 
   return {
     stdout: textSummary(data, { indent: ' ', enableColors: true }), // 콘솔에는 기존과 동일하게 출력
