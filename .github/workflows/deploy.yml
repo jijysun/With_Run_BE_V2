@@ -94,7 +94,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_KEY }}
-          source: "docker/docker-compose.yml,docker/nginx.conf,.env"
+          source: "docker/docker-compose.yml,docker/nginx.conf,docker/prometheus.yml,.env"
           target: ~/with_run
 
       - name: Deploy on EC2

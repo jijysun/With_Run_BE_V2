@@ -42,6 +42,8 @@ public class SecurityConfig {
                                 // 실제 인증: handshake 이후 STOMP CONNECT 프레임 단계에서 ChannelInterceptor로 검증 예정
                                 .requestMatchers("/api/ws/**").permitAll()
                                 .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                                // 관측 대시보드(FE) 전용 토큰 발급 — Bearer 인증 대신 X-Observer-Key 공유 시크릿으로 자체 게이트
+                                .requestMatchers("/api/observer/**").permitAll()
                                 .requestMatchers("/admin/**").hasRole("ADMIN")
                                 .anyRequest().authenticated()
                 )

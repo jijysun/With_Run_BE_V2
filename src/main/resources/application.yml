@@ -49,6 +49,10 @@ loadtest:
     enabled: ${LOADTEST_SEED_ENABLED:false}
     user-count: ${LOADTEST_SEED_USER_COUNT:500}
 
+# 채팅 관측 대시보드(FE)가 /api/observer/token 호출 시 제시해야 하는 공유 시크릿
+observer:
+  access-key: ${OBSERVER_ACCESS_KEY:}
+
 
   server:
     address: 0.0.0.0  # 모든 IP에서 접근 가능하게 설정

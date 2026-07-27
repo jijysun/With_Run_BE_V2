@@ -257,6 +257,10 @@ def cmd_run(args):
         "WS_URL": args.ws_url,
         "MAPPING_FILE": args.mapping_file,
         "LABEL": args.label,
+        # handleSummary()의 결과 저장 경로는 open()과 달리 k6 실행 시점 CWD(=REPO_ROOT) 기준이라
+        # 스크립트가 직접 알 수 없다 — 하네스가 이미 계산해둔 실제 RESULT_DIR(기본값 또는
+        # DEV_NOTES_DIR 오버라이드 반영)을 그대로 넘겨줘야 두 군데 경로 로직이 어긋나지 않는다.
+        "RESULT_DIR": RESULT_DIR.as_posix(),
     }
     result_path = run_k6(args.script, env)
     _report(result_path, args.compare_to, args.no_append)

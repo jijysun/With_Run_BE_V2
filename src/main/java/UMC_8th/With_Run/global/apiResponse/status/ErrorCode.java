@@ -84,7 +84,10 @@ public enum ErrorCode implements BaseErrorCode {
     WRONG_PAGE (HttpStatus.BAD_REQUEST, "PAGE4001", "올바르지 않은 페이지 번호 입니다."),
     WRONG_PAGE_SIZE (HttpStatus.BAD_REQUEST, "PAGE4002", "페이지 크기는 1-100 사이여야 합니다."),
     PAGE_OUT_OF_RANGE (HttpStatus.BAD_REQUEST, "PAGE4003", "페이지 번호가 범위를 벗어났습니다."),
-    REPORT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT5001" , "사용자 신고 중 오류가 발생했습니다." );
+    REPORT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT5001" , "사용자 신고 중 오류가 발생했습니다." ),
+
+    // Observer (채팅 관측 대시보드 전용 토큰 발급)
+    OBSERVER_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "OBSERVER4001", "관찰자 인증에 실패했습니다.");
 
 
     private final HttpStatus httpStatus;
