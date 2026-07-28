@@ -59,7 +59,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of("*")); // 추후 프론트 도메인 명시
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // X-Observer-Key: 관측 대시보드(FE)가 /api/observer/token을 브라우저에서 직접 호출할 때 필요
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Observer-Key"));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(false); //순수 Bearer 토큰 인증이라 credentials 해서 끔
 
