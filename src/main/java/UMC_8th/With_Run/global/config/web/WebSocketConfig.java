@@ -37,10 +37,27 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     }
 
+    // 클라이언트 → 서버 → All STOMP 프레임이 이 채널을 거침
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        // 클라이언트 → 서버로 들어오는 모든 STOMP 프레임(CONNECT/SUBSCRIBE/SEND)이 이 채널을 거친다.
         // StompChannelInterceptor가 CONNECT 프레임에서만 JWT를 검증하고 세션에 Principal을 심는다.
         registration.interceptors(stompChannelInterceptor);
+
+        // Spring 공식 문서: I/O Blocking 되는 작업에 대해서 풀 크기 늘리라고만 명시되어 있음.. 조금씩 수정하기
+        registration.taskExecutor()
+                .corePoolSize(16)
+                .maxPoolSize(32)
+                .queueCapacity(200);
+        // 이게 자체가 내부적으로 ThreadPoolTaskExecutor를 만들도록 고정 ==
+    }
+
+    // 서버 → 클라이언트로 나가는 브로드캐스트(RedisSubscriber.onMessage -> convertAndSend)가 거치는 채널
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        // 실측상 InBound 보다 나가는 량이 더 많아서 더 크게.
+        registration.taskExecutor()
+                .corePoolSize(24)
+                .maxPoolSize(48)
+                .queueCapacity(1000);
     }
 }
