@@ -116,6 +116,7 @@ public class MessageServiceImplV2 implements MessageService {
         // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
         log.info("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
+        log.info("Redis I/O 발생! -> chatting(): HGET isChatting × {}건 (조건부 HINCRBY unReadMsg 포함 가능)", userChatList.size());
         userChatList.forEach(userChat -> {
             String key = "user:" + userChat + ":" + chatId;
 
@@ -134,6 +135,7 @@ public class MessageServiceImplV2 implements MessageService {
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
         String chatKey = "chat:" + chatId;
+        log.info("Redis I/O 발생! -> chatting(): HPUT (key={}, field=lastReceivedMsg, value={})", chatKey, reqDTO.getMessage());
         redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", reqDTO.getMessage());
         redisSyncScheduler.markingDirtyChat(chatKey);
 
@@ -142,7 +144,9 @@ public class MessageServiceImplV2 implements MessageService {
                 .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), msg))
                 .build();
 
-        redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadDTO);
+        String publishTopic = "redis.chat.msg." + chatId;
+        log.info("Redis I/O 발생! -> chatting(): PUBLISH (topic={})", publishTopic);
+        redisPublisher.publishMsg(publishTopic, payloadDTO);
 
         Counter.builder("chat_messages_sent_total")
                 .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 채팅 메시지 수")
