@@ -101,7 +101,10 @@ public class MessageServiceImplV2 implements MessageService {
 
         // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회
         // = userId 위조 가능
+        log.info("SQL 발생! -> chatting(): SELECT User (email={})", authenticatedEmail);
         User user = userRepository.findByEmailWithProfile(authenticatedEmail).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+
+        log.info("SQL 발생! -> chatting(): SELECT Chat (chatId={})", chatId);
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
 
         /// 메세지 객체 하나만 저장하는데 왜 리스트화 하는 것?
@@ -111,6 +114,7 @@ public class MessageServiceImplV2 implements MessageService {
 
 
         // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
+        log.info("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
         userChatList.forEach(userChat -> {
             String key = "user:" + userChat + ":" + chatId;
@@ -126,6 +130,7 @@ public class MessageServiceImplV2 implements MessageService {
 
         // 3. 메세지 저장
         // - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
+        log.info("SQL 발생! -> chatting(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
         String chatKey = "chat:" + chatId;
