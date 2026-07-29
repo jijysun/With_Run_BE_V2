@@ -15,6 +15,7 @@ import UMC_8th.With_Run.domain.chat.service.ChatService;
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
 import UMC_8th.With_Run.global.exception.handler.ChatHandler;
 import UMC_8th.With_Run.global.exception.handler.UserHandler;
+import UMC_8th.With_Run.global.scheduler.RedisSyncScheduler;
 import UMC_8th.With_Run.domain.user.entity.User;
 import UMC_8th.With_Run.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class ChatServiceImplV2 implements ChatService {
     private final MessageRepository messageRepository;
     private final SimpMessagingTemplate template;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisSyncScheduler redisSyncScheduler;
 
     /// followee = 내가 팔로우
     /// follower = 나를 팔로우!
@@ -50,8 +52,10 @@ public class ChatServiceImplV2 implements ChatService {
         UserChat userChat = userChatRepository.findByUser_IdAndChat_Id(user.getId(), chatId).orElseThrow(() -> new ChatHandler(ErrorCode.WRONG_CHAT));
 
         // 사용자의 읽지 않은 메세지 수 0 + isChatting = true -> redis
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "true");
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "unReadMsg", "0");
+        String enterChatKey = "user:" + user.getId() + ":" + chatId;
+        redisTemplate.opsForHash().put(enterChatKey, "isChatting", "true");
+        redisTemplate.opsForHash().put(enterChatKey, "unReadMsg", "0");
+        redisSyncScheduler.markingDirtyUserChat(enterChatKey);
         return MessageConverter.toChatHistoryDTO(messageRepository.findByChat_Id(chatId), chatId); // join fetch!
     }
 
@@ -110,8 +114,10 @@ public class ChatServiceImplV2 implements ChatService {
         if (!privateChat.isEmpty()) { // 이미 갠톡 존재하는 경우 해당 채팅 입장.
             Long chatId = privateChat.get(0).getChat().getId();
 
-            redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "true");
-            redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "unReadMsg", "0");
+            String existingChatKey = "user:" + user.getId() + ":" + chatId;
+            redisTemplate.opsForHash().put(existingChatKey, "isChatting", "true");
+            redisTemplate.opsForHash().put(existingChatKey, "unReadMsg", "0");
+            redisSyncScheduler.markingDirtyUserChat(existingChatKey);
 
             List<ChatResponseDTO.BroadcastMsgDTO> chatHistoryDTO = MessageConverter.toChatHistoryDTO(messageRepository.findByChat_Id(chatId), chatId);
             return ChatConverter.toCreateChatDTO(chatId, chatHistoryDTO); // join fetch!
@@ -131,13 +137,19 @@ public class ChatServiceImplV2 implements ChatService {
         Long chatId = saveChat.getId();
         userChatRepository.saveAll(userChats);
 
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "true");
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "unReadMsg", "0");
-        redisTemplate.opsForHash().put("user:" + targetId + ":" + chatId, "isChatting", "false");
-        redisTemplate.opsForHash().put("user:" + targetId + ":" + chatId, "unReadMsg", "1");
+        String newChatSelfKey = "user:" + user.getId() + ":" + chatId;
+        String newChatTargetKey = "user:" + targetId + ":" + chatId;
+        redisTemplate.opsForHash().put(newChatSelfKey, "isChatting", "true");
+        redisTemplate.opsForHash().put(newChatSelfKey, "unReadMsg", "0");
+        redisTemplate.opsForHash().put(newChatTargetKey, "isChatting", "false");
+        redisTemplate.opsForHash().put(newChatTargetKey, "unReadMsg", "1");
+        redisSyncScheduler.markingDirtyUserChat(newChatSelfKey);
+        redisSyncScheduler.markingDirtyUserChat(newChatTargetKey);
 
         ///  메세지 보내기!!
-        redisTemplate.opsForHash().put("chat:" + chatId, "lastReceivedMsg", "상대방과 나누는 첫 대화입니다!");
+        String newChatKey = "chat:" + chatId;
+        redisTemplate.opsForHash().put(newChatKey, "lastReceivedMsg", "상대방과 나누는 첫 대화입니다!");
+        redisSyncScheduler.markingDirtyChat(newChatKey);
 //        saveChat.updateLastReceivedMsg("상대방과 나누는 첫 대화입니다!");
 
         // redis 처리 전용 dto 변환,
@@ -201,8 +213,10 @@ public class ChatServiceImplV2 implements ChatService {
                 .toList();
 
         invitedUserIdList.forEach(invitedUserId -> {
-            redisTemplate.opsForHash().put("user:" + invitedUserId + ":" + chatId, "isChatting", "false");
-            redisTemplate.opsForHash().put("user:" + invitedUserId + ":" + chatId, "unReadMsg", "1");
+            String invitedKey = "user:" + invitedUserId + ":" + chatId;
+            redisTemplate.opsForHash().put(invitedKey, "isChatting", "false");
+            redisTemplate.opsForHash().put(invitedKey, "unReadMsg", "1");
+            redisSyncScheduler.markingDirtyUserChat(invitedKey);
         });
 
         List<User> allInvitedUserList = userRepository.findAllById(invitedUserIdList);
@@ -272,7 +286,9 @@ public class ChatServiceImplV2 implements ChatService {
         String inviteMsg = reqDTO.getUsername() + "님이 " + name + "을 초대하였습니다.";
         messageRepository.save(MessageConverter.toInviteMessage(user, chat, inviteMsg));
 //        chat.updateLastReceivedMsg(inviteMsg);
-        redisTemplate.opsForHash().put("chat:" + chatId, "lastReceivedMsg", inviteMsg);
+        String inviteChatKey = "chat:" + chatId;
+        redisTemplate.opsForHash().put(inviteChatKey, "lastReceivedMsg", inviteMsg);
+        redisSyncScheduler.markingDirtyChat(inviteChatKey);
         template.convertAndSend("/sub/" + chatId + "/msg", inviteMsg);
     }
 
@@ -280,7 +296,9 @@ public class ChatServiceImplV2 implements ChatService {
 
     @Transactional
     public void leaveChat(Long chatId, User user) {
-        redisTemplate.opsForHash().put("user:" + user.getId() + ":" + chatId, "isChatting", "false");
+        String leaveChatKey = "user:" + user.getId() + ":" + chatId;
+        redisTemplate.opsForHash().put(leaveChatKey, "isChatting", "false");
+        redisSyncScheduler.markingDirtyUserChat(leaveChatKey);
     }
 
     @Transactional

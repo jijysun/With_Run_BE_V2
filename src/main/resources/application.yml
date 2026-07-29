@@ -21,9 +21,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        show_sql: true
-        format_sql: true
-        use_sql_comments: true
+        # show_sql/format_sql/use_sql_comments는 Logback을 안 거치고 System.out에 직접 찍혀서
+        # 레벨 조절도, 비동기 처리도 안 됨 + 포맷팅 자체 비용도 큼(부하테스트로 실측 확인, IMPROVEMENT_PLAN.md 참고).
+        # 대신 chatting() 등 실제 핫패스에 원하는 포맷의 log.info를 직접 심는 방식으로 대체.
+#        show_sql: true
+#        format_sql: true
+#        use_sql_comments: true
         hbm2ddl:
           auto: update
         default_batch_fetch_size: 1000

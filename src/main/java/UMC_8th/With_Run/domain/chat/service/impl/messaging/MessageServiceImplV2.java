@@ -18,6 +18,7 @@ import UMC_8th.With_Run.global.exception.handler.CourseHandler;
 import UMC_8th.With_Run.global.exception.handler.UserHandler;
 import UMC_8th.With_Run.global.redis.dto.PayloadDTO;
 import UMC_8th.With_Run.global.redis.pub_sub.RedisPublisher;
+import UMC_8th.With_Run.global.scheduler.RedisSyncScheduler;
 import UMC_8th.With_Run.domain.course.entity.Course;
 import UMC_8th.With_Run.domain.course.repository.CourseRepository;
 import UMC_8th.With_Run.domain.user.entity.User;
@@ -54,6 +55,7 @@ public class MessageServiceImplV2 implements MessageService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
+    private final RedisSyncScheduler redisSyncScheduler;
 
     @Value("${chatgpt.api.key}")
     private String API_KEY;
@@ -99,7 +101,10 @@ public class MessageServiceImplV2 implements MessageService {
 
         // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회
         // = userId 위조 가능
+        log.info("SQL 발생! -> chatting(): SELECT User (email={})", authenticatedEmail);
         User user = userRepository.findByEmailWithProfile(authenticatedEmail).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+
+        log.info("SQL 발생! -> chatting(): SELECT Chat (chatId={})", chatId);
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
 
         /// 메세지 객체 하나만 저장하는데 왜 리스트화 하는 것?
@@ -109,7 +114,9 @@ public class MessageServiceImplV2 implements MessageService {
 
 
         // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
+        log.info("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
+        log.info("Redis I/O 발생! -> chatting(): HGET isChatting × {}건 (조건부 HINCRBY unReadMsg 포함 가능)", userChatList.size());
         userChatList.forEach(userChat -> {
             String key = "user:" + userChat + ":" + chatId;
 
@@ -117,22 +124,29 @@ public class MessageServiceImplV2 implements MessageService {
             String isChatting = redisTemplate.opsForHash().get(key, "isChatting").toString();
             if (isChatting.equals("false")) {
                 redisTemplate.opsForHash().increment(key, "unReadMsg", 1);
+                redisSyncScheduler.markingDirtyUserChat(key);
             }
         });
 
 
         // 3. 메세지 저장
         // - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
+        log.info("SQL 발생! -> chatting(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
-        redisTemplate.opsForHash().put("chat:" + chatId, "lastReceivedMsg", reqDTO.getMessage());
+        String chatKey = "chat:" + chatId;
+        log.info("Redis I/O 발생! -> chatting(): HPUT (key={}, field=lastReceivedMsg, value={})", chatKey, reqDTO.getMessage());
+        redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", reqDTO.getMessage());
+        redisSyncScheduler.markingDirtyChat(chatKey);
 
         PayloadDTO<Object> payloadDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
                 .type("chat")
                 .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), msg))
                 .build();
 
-        redisPublisher.publishMsg("redis.chat.msg." + chatId, payloadDTO);
+        String publishTopic = "redis.chat.msg." + chatId;
+        log.info("Redis I/O 발생! -> chatting(): PUBLISH (topic={})", publishTopic);
+        redisPublisher.publishMsg(publishTopic, payloadDTO);
 
         Counter.builder("chat_messages_sent_total")
                 .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 채팅 메시지 수")
@@ -200,15 +214,17 @@ public class MessageServiceImplV2 implements MessageService {
             List<Long> userChatList = userChatRepository.findAllByChat_Id(chat.getId());
 
             userChatList.forEach(userChat -> {
-                String key = "user:" + userChat + ":" + chat.getId();
-                String isChatting = redisTemplate.opsForHash().get(key, "isChatting").toString();
+                String participantKey = "user:" + userChat + ":" + chat.getId();
+                String isChatting = redisTemplate.opsForHash().get(participantKey, "isChatting").toString();
                 if (isChatting.equals("false")) {
-                    redisTemplate.opsForHash().increment(key, "unReadMsg", 1);
+                    redisTemplate.opsForHash().increment(participantKey, "unReadMsg", 1);
+                    redisSyncScheduler.markingDirtyUserChat(participantKey);
                 }
             });
 
             String key = "user:" + user.getId() + ":" + chat.getId();
             redisTemplate.opsForHash().put(key, "isChatting", "true");
+            redisSyncScheduler.markingDirtyUserChat(key);
 
             messageRepository.save(MessageConverter.toShareMessage(user, chat, course));
 
@@ -219,7 +235,9 @@ public class MessageServiceImplV2 implements MessageService {
 
             // 메세지 BroadCast
 //            chat.updateLastReceivedMsg("산책 코스를 공유하였습니다");
-            redisTemplate.opsForHash().put("chat:" + chat.getId(), "lastReceivedMsg", "산책 코스를 공유하였습니다");
+            String shareChatKey = "chat:" + chat.getId();
+            redisTemplate.opsForHash().put(shareChatKey, "lastReceivedMsg", "산책 코스를 공유하였습니다");
+            redisSyncScheduler.markingDirtyChat(shareChatKey);
             redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
         } else { // 친구를 통한 공유, 채팅이 없는 경우 추가
             User targetUser = userRepository.findById(reqDTO.getTargetUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
@@ -235,18 +253,24 @@ public class MessageServiceImplV2 implements MessageService {
                 ucList.add(UserChatConverter.toNewUserChat(targetUser, user, null, privateChat));
 
                 Chat savedChat = chatRepository.save(privateChat);
-                redisTemplate.opsForHash().put("user:" + user.getId() + ":" + savedChat.getId(), "isChatting", "true");
-                redisTemplate.opsForHash().put("user:" + user.getId() + ":" + savedChat.getId(), "unReadMsg", "0");
-                redisTemplate.opsForHash().put("user:" + targetUser.getId() + ":" + savedChat.getId(), "isChatting", "false");
-                redisTemplate.opsForHash().put("user:" + targetUser.getId() + ":" + savedChat.getId(), "unReadMsg", "1");
+                String shareNewSelfKey = "user:" + user.getId() + ":" + savedChat.getId();
+                String shareNewTargetKey = "user:" + targetUser.getId() + ":" + savedChat.getId();
+                redisTemplate.opsForHash().put(shareNewSelfKey, "isChatting", "true");
+                redisTemplate.opsForHash().put(shareNewSelfKey, "unReadMsg", "0");
+                redisTemplate.opsForHash().put(shareNewTargetKey, "isChatting", "false");
+                redisTemplate.opsForHash().put(shareNewTargetKey, "unReadMsg", "1");
+                redisSyncScheduler.markingDirtyUserChat(shareNewSelfKey);
+                redisSyncScheduler.markingDirtyUserChat(shareNewTargetKey);
 
                 userChatRepository.saveAll(ucList);
 
                 // Save And Broadcast
                 messageRepository.save(MessageConverter.toShareMessage(user, savedChat, course));
 //                savedChat.updateLastReceivedMsg("산책 코스를 공유하였습니다");
-                redisTemplate.opsForHash().put("chat:" + savedChat.getId(), "lastReceivedMsg", "산책 코스를 공유하였습니다");
-                redisTemplate.opsForHash().increment("user:" + targetUser.getId() + ":" + savedChat.getId() , "unReadMsg", 1);
+                String shareNewChatKey = "chat:" + savedChat.getId();
+                redisTemplate.opsForHash().put(shareNewChatKey, "lastReceivedMsg", "산책 코스를 공유하였습니다");
+                redisSyncScheduler.markingDirtyChat(shareNewChatKey);
+                redisTemplate.opsForHash().increment(shareNewTargetKey, "unReadMsg", 1);
 
                 PayloadDTO<Object> payloadDTO = PayloadDTO.builder()
                         .type("share")
@@ -261,6 +285,7 @@ public class MessageServiceImplV2 implements MessageService {
 
                 String key = "user:"+user.getId() + ":"+ privateChatId;
                 redisTemplate.opsForHash().put(key,  "isChatting", "true");
+                redisSyncScheduler.markingDirtyUserChat(key);
 
                 // Save And Broadcast
                 messageRepository.save(MessageConverter.toShareMessage(user, privateChat, course));
@@ -272,10 +297,13 @@ public class MessageServiceImplV2 implements MessageService {
                     String isChatting = redisTemplate.opsForHash().get(thisKey, "isChatting").toString();
                     if (isChatting.equals("false")) {
                         redisTemplate.opsForHash().increment(thisKey, "unReadMsg", 1);
+                        redisSyncScheduler.markingDirtyUserChat(thisKey);
                     }
                 });
 
-                redisTemplate.opsForHash().put("chat:" + privateChatId, "lastReceivedMsg", "산책 코스를 공유하였습니다");
+                String privateShareChatKey = "chat:" + privateChatId;
+                redisTemplate.opsForHash().put(privateShareChatKey, "lastReceivedMsg", "산책 코스를 공유하였습니다");
+                redisSyncScheduler.markingDirtyChat(privateShareChatKey);
 
                 PayloadDTO<Object> payloadDTO = PayloadDTO.builder()
                         .type("share")

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!--
+        기존엔 모든 로그(Hibernate SQL, Service log.info 등)가 요청 처리 스레드에서
+        동기적으로 콘솔 I/O를 기다렸음 — 200VU 부하테스트에서 CPU 포화의 원인 중 하나로 지목됨.
+        AsyncAppender로 실제 I/O를 별도 스레드로 넘겨 요청 스레드 블로킹을 없앤다.
+
+        discardingThreshold는 명시적으로 건드리지 않음 — Logback 기본 동작상 큐가 threshold(기본 20%) 이상
+        차면 INFO 이하만 버려지고 WARN/ERROR는 절대 버려지지 않으므로, 오류 로그가 가려질 걱정 없이
+        그대로 둔다(AsyncAppenderBase#isDiscardable 참고).
+    -->
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CONSOLE"/>
+        <queueSize>512</queueSize>
+        <includeCallerData>false</includeCallerData>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="ASYNC"/>
+    </root>
+</configuration>
