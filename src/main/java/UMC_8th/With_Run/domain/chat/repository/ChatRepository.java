@@ -17,4 +17,6 @@ public interface ChatRepository extends JpaRepository<Chat, Long>{
             "where uc.user.id in (:user1Id, :user2Id) And c.participants = 2 " +
             "group by c.id HAVING count (DISTINCT uc.user.id) = 2")
     Chat findPrivateChat (Long  user1Id, Long user2Id);
+
+    boolean existsChatById(Long id);
 }

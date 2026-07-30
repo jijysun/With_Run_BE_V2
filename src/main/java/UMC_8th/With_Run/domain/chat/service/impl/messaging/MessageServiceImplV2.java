@@ -114,7 +114,12 @@ public class MessageServiceImplV2 implements MessageService {
         log.info("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): Profile (userId={})", user.getId());
         Profile profile = userService.getCachedProfile(user.getId());
 
-        log.info("SQL 발생! -> chatting(): SELECT Chat (chatId={})", chatId);
+        log.info("SELECT 시도 (existsById) -> chatting(): (chatId:{})", chatId);
+        if (!chatRepository.existsChatById(chatId)){
+            throw new ChatHandler(ErrorCode.WRONG_CHAT);
+        }
+
+        log.info("SQL 발생! -> chatting(): Get Chat (chatId={})", chatId);
 //        Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
         Chat chat = chatRepository.getReferenceById(chatId);
 
