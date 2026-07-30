@@ -115,7 +115,8 @@ public class MessageServiceImplV2 implements MessageService {
         Profile profile = userService.getCachedProfile(user.getId());
 
         log.info("SQL 발생! -> chatting(): SELECT Chat (chatId={})", chatId);
-        Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
+//        Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
+        Chat chat = chatRepository.getReferenceById(chatId);
 
         /// 메세지 객체 하나만 저장하는데 왜 리스트화 하는 것?
         Message msg = MessageConverter.toMessage(user, chat, reqDTO);
