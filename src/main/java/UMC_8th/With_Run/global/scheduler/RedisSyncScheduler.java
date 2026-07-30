@@ -20,7 +20,7 @@ import java.util.*;
 @Slf4j
 public class RedisSyncScheduler {
 
-    private static final String DIRTY_USER_CHAT_KEY = "dirty:user_chat_key:";
+    public static final String DIRTY_USER_CHAT_KEY = "dirty:user_chat_key:";
     private static final String DIRTY_CHAT_KEY = "dirty:chat_key:";
     private final RedisTemplate<String, Object> redisTemplate;
     private final ChatRepository chatRepository;
