@@ -205,6 +205,8 @@ public class MessageServiceImplV2 implements MessageService {
     @Override
     @Transactional
     public void shareCourse(ChatRequestDTO.ShareReqDTO reqDTO) { /// 여려 명 공유 시 채팅방 공유 로직, 카카오톡 공유 화면 참고!
+        // chatting()과 동일한 계측 패턴 — 앞으로 주 테스트 시나리오에 shareCourse() 호출이 추가될 예정이라 미리 부착.
+        Timer.Sample sample = Timer.start(meterRegistry);
 
         User user = userRepository.findById(reqDTO.getUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
         Course course = courseRepository.findById(reqDTO.getCourseId()).orElseThrow(() -> new CourseHandler(ErrorCode.WRONG_COURSE)); // 에러 코드 바꾸기
@@ -239,6 +241,13 @@ public class MessageServiceImplV2 implements MessageService {
             redisTemplate.opsForHash().put(shareChatKey, "lastReceivedMsg", "산책 코스를 공유하였습니다");
             redisSyncScheduler.markingDirtyChat(shareChatKey);
             redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
+            Counter.builder("chat_share_sent_total")
+                    .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
+                    .register(meterRegistry)
+                    .increment();
+            sample.stop(Timer.builder("chat_share_processing_seconds")
+                    .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
+                    .register(meterRegistry));
         } else { // 친구를 통한 공유, 채팅이 없는 경우 추가
             User targetUser = userRepository.findById(reqDTO.getTargetUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
             Chat privateChat = chatRepository.findPrivateChat(user.getId(), targetUser.getId());
@@ -279,6 +288,13 @@ public class MessageServiceImplV2 implements MessageService {
 
                 // 메세지 BroadCast
                 redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
+                Counter.builder("chat_share_sent_total")
+                        .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
+                        .register(meterRegistry)
+                        .increment();
+                sample.stop(Timer.builder("chat_share_processing_seconds")
+                        .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
+                        .register(meterRegistry));
             } else { // 친구 공유, 채팅이 존재하는 경우
                 Long privateChatId = privateChat.getId();
                 log.info("'shareCourse'/toFriend - privateChat is Not Null! id = {}", privateChatId);
@@ -312,6 +328,13 @@ public class MessageServiceImplV2 implements MessageService {
 
                 // 메세지 BroadCast
                 redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
+                Counter.builder("chat_share_sent_total")
+                        .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
+                        .register(meterRegistry)
+                        .increment();
+                sample.stop(Timer.builder("chat_share_processing_seconds")
+                        .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
+                        .register(meterRegistry));
             }
         }
 
