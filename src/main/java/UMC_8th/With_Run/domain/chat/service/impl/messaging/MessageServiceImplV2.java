@@ -21,8 +21,10 @@ import UMC_8th.With_Run.global.redis.pub_sub.RedisPublisher;
 import UMC_8th.With_Run.global.scheduler.RedisSyncScheduler;
 import UMC_8th.With_Run.domain.course.entity.Course;
 import UMC_8th.With_Run.domain.course.repository.CourseRepository;
+import UMC_8th.With_Run.domain.user.entity.Profile;
 import UMC_8th.With_Run.domain.user.entity.User;
 import UMC_8th.With_Run.domain.user.repository.UserRepository;
+import UMC_8th.With_Run.domain.user.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
@@ -60,6 +62,7 @@ public class MessageServiceImplV2 implements MessageService {
     private final MeterRegistry meterRegistry;
     private final RedisSyncScheduler redisSyncScheduler;
     private final RedisScript<Long> unreadIncrementScript;
+    private final UserService userService;
 
     @Value("${chatgpt.api.key}")
     private String API_KEY;
@@ -103,10 +106,13 @@ public class MessageServiceImplV2 implements MessageService {
         // chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
         Timer.Sample sample = Timer.start(meterRegistry);
 
-        // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회
-        // = userId 위조 가능
-        log.info("SQL 발생! -> chatting(): SELECT User (email={})", authenticatedEmail);
-        User user = userRepository.findByEmailWithProfile(authenticatedEmail).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+        // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회 = userId 위조 가능
+        // User/Profile을 Caffeine 캐시(userCache/profileCache, 서로 다른 TTL)로 분리 조회 —
+        // Cache Hit = SQL 자체가 안나감, 로그가 나가도 SQL이 발생한 건 아님.
+        log.info("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): User (email={})", authenticatedEmail);
+        User user = userService.getCachedUser(authenticatedEmail);
+        log.info("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): Profile (userId={})", user.getId());
+        Profile profile = userService.getCachedProfile(user.getId());
 
         log.info("SQL 발생! -> chatting(): SELECT Chat (chatId={})", chatId);
         Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
@@ -148,7 +154,11 @@ public class MessageServiceImplV2 implements MessageService {
 
         PayloadDTO<Object> payloadDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
                 .type("chat")
-                .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), msg))
+                // user.getProfile()은 더 이상 쓰면 안 됨 — user가 findByEmail(join fetch 없음)로 조회됨
+                // + profile은 지연 로딩 프록시고, 캐시로 재사용되는 detached 상태라 세션이 없어 LazyInitializationException이 남.
+                // 대신 별도로 캐시 조회한 profile을 그대로 사용.
+//                .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), msg))
+                .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, profile, msg))
                 .build();
 
         String publishTopic = "redis.chat.msg." + chatId;
