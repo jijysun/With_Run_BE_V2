@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -162,6 +163,20 @@ public class UserServiceImpl implements UserService {
 
     }
 
+    // cacheNames는 어노테이션 상수 제약(컴파일타임 상수만 허용)으로 문자열 그대로 씀
+    // CacheType.USER/PROFILE.getCacheName()에 주의할 것
+    @Override
+    @Cacheable(cacheNames = "userCache", key = "#email")
+    public User getCachedUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+    }
 
+    @Override
+    @Cacheable(cacheNames = "profileCache", key = "#userId")
+    public Profile getCachedProfile(Long userId) {
+        return profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
+    }
 }
 
