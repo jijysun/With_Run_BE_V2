@@ -31,7 +31,10 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +59,7 @@ public class MessageServiceImplV2 implements MessageService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
     private final RedisSyncScheduler redisSyncScheduler;
+    private final RedisScript<Long> unreadIncrementScript;
 
     @Value("${chatgpt.api.key}")
     private String API_KEY;
@@ -116,15 +120,18 @@ public class MessageServiceImplV2 implements MessageService {
         // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
         log.info("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
-        log.info("Redis I/O 발생! -> chatting(): HGET isChatting × {}건 (조건부 HINCRBY unReadMsg 포함 가능)", userChatList.size());
-        userChatList.forEach(userChat -> {
-            String key = "user:" + userChat + ":" + chatId;
 
-            /// 채팅방 참여자 만큼 RedisHash 접근 발생.
-            String isChatting = redisTemplate.opsForHash().get(key, "isChatting").toString();
-            if (isChatting.equals("false")) {
-                redisTemplate.opsForHash().increment(key, "unReadMsg", 1);
-                redisSyncScheduler.markingDirtyUserChat(key);
+        log.info("Redis PipeLine I/O 발생! -> chatting(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
+        // SessionCallback: RedisConnection을 직접 다루지 않고, RedisOperations의 타입-세이프 API(execute(script, keys, args)) 사용 가능!
+        redisTemplate.executePipelined(new SessionCallback<Object>() { // pipeLined = RTT 개선 부여
+            @Override
+            public Object execute(RedisOperations operations) {
+                userChatList.forEach(userChat -> {
+                    String key = "user:" + userChat + ":" + chatId;
+                    // .lua = 원자성 부여
+                    operations.execute(unreadIncrementScript, List.of(key, RedisSyncScheduler.DIRTY_USER_CHAT_KEY), "1");
+                });
+                return null;
             }
         });
 
