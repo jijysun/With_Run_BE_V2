@@ -17,8 +17,8 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public enum CacheType {
 
-    USER("userCache", Duration.ofMinutes(10), 1_000),
-    PROFILE("profileCache", Duration.ofMinutes(5), 1_000);
+    USER("userCache", Duration.ofMinutes(30), 1_000),
+    PROFILE("profileCache", Duration.ofMinutes(1), 1_000);
 
     private final String cacheName;
     private final Duration ttl;
