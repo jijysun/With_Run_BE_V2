@@ -254,6 +254,8 @@ def cmd_run(args):
         "VU_COUNT": str(args.vu) if args.vu else None,
         "DURATION_SEC": str(args.duration) if args.duration else None,
         "RAMP_SEC": str(args.ramp) if args.ramp is not None else None,
+        "MIN_SEND_INTERVAL_MS": str(args.min_interval) if args.min_interval is not None else None,
+        "MAX_SEND_INTERVAL_MS": str(args.max_interval) if args.max_interval is not None else None,
         "WS_URL": args.ws_url,
         "MAPPING_FILE": args.mapping_file,
         "LABEL": args.label,
@@ -292,6 +294,8 @@ def main():
     p_run.add_argument("--vu", type=int)
     p_run.add_argument("--duration", type=int, help="DURATION_SEC")
     p_run.add_argument("--ramp", type=int, help="RAMP_SEC")
+    p_run.add_argument("--min-interval", type=int, help="발신 간격 하한(ms). MIN=MAX로 주면 무작위 폭 없이 그 값으로 고정")
+    p_run.add_argument("--max-interval", type=int, help="발신 간격 상한(ms). 기본값(생략 시)은 스크립트 기본 1000~2000ms")
     p_run.add_argument("--ws-url", help="기본값은 스크립트 내부 값(ws://localhost:8080/api/ws). 원격 배포 테스트 시 여기만 바꾸면 됨")
     p_run.add_argument("--mapping-file", help="예: ./result/loadtest-mapping-200.json")
     p_run.add_argument("--label", help="결과 파일명 라벨(기본은 스크립트의 {VU}vu)")

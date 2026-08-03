@@ -26,6 +26,9 @@
 // 부하량을 바꿔 재측정하고 싶을 때(예: 400명):
 //   k6 run -e VU_COUNT=400 -e MAPPING_FILE=./result/loadtest-mapping-400.json \
 //          -e JWT_SECRET=<...> src/test/k6/With_Run_Chat_LoadTest_V2.js
+// 발신 간격도 바꾸고 싶을 때(기본 1000~2000ms 무작위 폭):
+//   -e MIN_SEND_INTERVAL_MS=500 -e MAX_SEND_INTERVAL_MS=1000   (0.5~1초 무작위 폭)
+//   -e MIN_SEND_INTERVAL_MS=1000 -e MAX_SEND_INTERVAL_MS=1000  (MIN=MAX -> 전 VU가 정확히 1초 간격, 무작위 폭 없음)
 
 import ws from 'k6/ws';
 import { check, sleep } from 'k6';
@@ -46,8 +49,10 @@ const TEST_DURATION_SEC = Number(__ENV.DURATION_SEC || 180);
 // 200개 커넥션이 t=0에 한꺼번에 몰리는 스탬피드를 피하기 위해 접속 시각을 무작위로 흩뿌리는 폭(초).
 const RAMP_SEC = Number(__ENV.RAMP_SEC || 10);
 const TEST_DURATION_MS = TEST_DURATION_SEC * 1000;
-const MIN_SEND_INTERVAL_MS = 1000;
-const MAX_SEND_INTERVAL_MS = 2000;
+// 기본값(1000/2000)은 기존 실행과 동일 — MIN=MAX로 지정하면 무작위 폭 없이 정확히 그 값으로 고정됨
+// (예: MIN_SEND_INTERVAL_MS=MAX_SEND_INTERVAL_MS=1000 -> 전 VU가 정확히 1초 간격).
+const MIN_SEND_INTERVAL_MS = Number(__ENV.MIN_SEND_INTERVAL_MS || 1000);
+const MAX_SEND_INTERVAL_MS = Number(__ENV.MAX_SEND_INTERVAL_MS || 2000);
 const LABEL = __ENV.LABEL || `${VU_COUNT}vu`;
 
 const mapping = JSON.parse(open(MAPPING_FILE));
