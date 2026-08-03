@@ -7,6 +7,20 @@ plugins {
 group = 'UMC_8th'
 version = '0.0.1-SNAPSHOT'
 
+// /actuator/info로 배포된 이미지가 실제 어느 커밋인지 조회하기 위함.
+// Dockerfile 빌드 스테이지엔 .git이 없어 로컬 git 조회가 안 되므로,
+// CI(deploy.yml)가 이미 git rev-parse HEAD로 구해둔 SHA를 -PgitCommit=... 로 전달받는다.
+// 로컬/gitCommit 미전달 빌드는 "unknown"으로 표시됨(정상 동작에는 영향 없음).
+springBoot {
+	buildInfo {
+		properties {
+			additional = [
+				'commit.id': project.findProperty('gitCommit') ?: 'unknown'
+			]
+		}
+	}
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(17)
