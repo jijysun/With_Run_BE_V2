@@ -3,6 +3,8 @@ networks:
     name: with_run_network
     driver: bridge
 
+# t4g.xlarge(arm64) 전환 검토 중 확인: redis:7-alpine / nginx:alpine / prom/prometheus:latest / grafana/grafana:latest 전부 Docker Hub에 arm64 매니페스트가 공식 등록돼 있어 이 파일 자체는 수정 불필요
+
 services:
   app:
     image: ${APP_IMAGE:-ghcr.io/jijysun/with_run_be_v2:latest}
