@@ -2,6 +2,7 @@ package UMC_8th.With_Run.domain.user.service;
 
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
 //import UMC_8th.With_Run.global.config.s3.S3Uploader;
+import UMC_8th.With_Run.global.config.cache.CacheType;
 import UMC_8th.With_Run.global.exception.handler.UserHandler;
 import UMC_8th.With_Run.global.security.jwt.JwtTokenProvider;
 import UMC_8th.With_Run.domain.map.entity.RegionProvince;
@@ -24,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,6 +40,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final RegionTownRepository townRepository;
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final CacheManager cacheManager;
 //    private final S3Uploader s3Uploader;
 
     @Override
@@ -173,6 +177,13 @@ public class ProfileServiceImpl implements ProfileService {
         profile.setUpdatedAt(LocalDateTime.now());
 
         profileRepository.save(profile);
+
+        // TTL(10분)까지 기다리지 않고 chatting()이 다음 조회부터 바로 새 프로필을 보게 즉시 무효화.
+        Cache profileCache = cacheManager.getCache(CacheType.PROFILE.getCacheName());
+        if (profileCache != null) {
+            profileCache.evict(user.getId());
+        }
+
         return dto;
     }
 

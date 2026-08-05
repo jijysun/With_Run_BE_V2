@@ -1,6 +1,7 @@
 package UMC_8th.With_Run.domain.user.service;
 
 import UMC_8th.With_Run.global.apiResponse.status.ErrorCode;
+import UMC_8th.With_Run.global.config.cache.CacheType;
 import UMC_8th.With_Run.global.exception.GeneralException;
 import UMC_8th.With_Run.global.exception.handler.UserHandler;
 import UMC_8th.With_Run.global.security.jwt.JwtTokenProvider;
@@ -26,6 +27,8 @@ import java.util.Collections;
 import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -43,6 +46,7 @@ public class UserServiceImpl implements UserService {
     private final RegionTownRepository townRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final CacheManager cacheManager;
 
     @Override
     public UserResponseDto.LoginResultDTO login(LoginRequestDTO request) {
@@ -102,6 +106,11 @@ public class UserServiceImpl implements UserService {
         user.delete();
         userRepository.save(user);
 
+        // TTL(1시간)까지 기다리지 않고 탈퇴 사실을 즉시 반영 — chatting()이 캐시된 옛 User를 계속 재사용하는 걸 방지.
+        Cache userCache = cacheManager.getCache(CacheType.USER.getCacheName());
+        if (userCache != null) {
+            userCache.evict(email);
+        }
     }
 
     @Override
