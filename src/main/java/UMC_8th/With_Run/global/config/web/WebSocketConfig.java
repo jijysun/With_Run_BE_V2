@@ -56,14 +56,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.taskExecutor(stompOutboundTaskExecutor());
     }
 
-    // 첫 200VU 실측: CPU(t3.micro, 2vCPU)가 이미 포화 상태인데 풀을 넓혀서 스레드 폭증 + Load Average·HikariCP Pending 악화
-    // - CPU-bound 구간에서는 스레드를 늘려도 처리량이 안 느는데 경쟁만 늘어남.
-    // + 보수적으로 축소. Micrometer로 계측해 Tomcat 스레드와 분리해서 관찰 하기
+    // (2026-07-29) t3.small(1물리코어) 기준 6/12로 축소했던 값 — t4g.xlarge(4물리코어) 400VU 재측정(08-05)에서
+    // 오히려 이 축소판이 아무 설정 없는 Spring 기본값(가용 프로세서×2 = 4코어 기준 8)보다도 못한 회귀로 확인...
+    // (연결 수립 지연 9.5~36배 폭증). 4코어 기준으로 재조정: core 8(Spring 기본값 하한) + 여유 4.
     @Bean
     public ThreadPoolTaskExecutor stompInboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(6);
-        executor.setMaxPoolSize(12);
+        executor.setCorePoolSize(12);
+        executor.setMaxPoolSize(24);
         executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("stomp-inbound-");
         executor.initialize();
@@ -71,12 +71,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         return executor;
     }
 
-    // 실측상 InBound 보다 나가는 량이 더 많아서(팬아웃 약 4배) 조금 더 크게 — 단 이전(24/48)보다는 축소.
+    // 실측상 InBound 보다 나가는 량이 더 많아서(팬아웃 약 4배) inbound의 약 4배로 설정.
     @Bean
     public ThreadPoolTaskExecutor stompOutboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(20);
+        executor.setCorePoolSize(16);
+        executor.setMaxPoolSize(32);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("stomp-outbound-");
         executor.initialize();
