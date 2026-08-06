@@ -56,14 +56,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.taskExecutor(stompOutboundTaskExecutor());
     }
 
-    // (2026-08-05) 12/24로 올렸던 1차 재조정은 개선 없이 스레드만 폭증(Peak 279 — 07-29 "너무 컸던" 최초 시도와
-    // 동일 패턴). 그 회차 진짜 원인은 풀 크기가 아니라 캐시 콜드스타트발 HikariCP 몰림(Pending mean 21.5/max 199)
-    // 으로 재진단됨 — 풀 크기 자체는 결정적 변수가 아니었다고 보고 소폭만 축소.
+    // (2026-08-06) 200VU 실측에서 인바운드 활성 스레드가 접속 버스트 구간에 정확히 10(=당시 core 상한)을 찍고
+    // 큐에 17이 쌓였다 — core 10이 그 순간엔 실제 제약이었다는 뜻. 정상 구간은 3~4개로 충분했지만,
+    // "core가 실제로 바인딩 조건이었는지"를 확인하기 위해 10→12로만 올려 재측정한다.
+    // (12에서도 활성 최대가 10 언저리면 10으로 충분했던 것, 11~12까지 차면 10이 부족했던 것 — 어느 쪽이든 해석 가능)
+    // 아웃바운드는 200VU에서 활성/큐 모두 사실상 0이었으므로 배포본(12/36) 그대로 두고 인바운드만 단일 변수로 바꾼다.
     @Bean
     public ThreadPoolTaskExecutor stompInboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(20);
+        executor.setCorePoolSize(12);
+        executor.setMaxPoolSize(24);
         executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("stomp-inbound-");
         executor.initialize();
@@ -71,7 +73,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         return executor;
     }
 
-    // 코어는 소폭만 축소하되, 순간 팬아웃 버스트에 대응할 여유(max)는 core의 3배로 넉넉히 유지.
+    // 이번 회차 미변경(단일 변수 유지) — 200VU에서 활성 스레드·큐가 모두 0에 가까워 조정 근거가 없음.
     @Bean
     public ThreadPoolTaskExecutor stompOutboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

@@ -43,7 +43,7 @@ public class RedisSubscriber implements MessageListener {
         switch (payloadDTO.getType()) {
             case "chat":
                 ChatResponseDTO.BroadcastMsgDTO broadcastMsgDTO = objectMapper.convertValue(payloadDTO.getPayload(), ChatResponseDTO.BroadcastMsgDTO.class);
-                log.info("broadcast chat ! {}", broadcastMsgDTO.getChatId());
+                log.debug("broadcast chat ! {}", broadcastMsgDTO.getChatId());
                 msgTemplate.convertAndSend("/sub/"+broadcastMsgDTO.getChatId()+"/msg", broadcastMsgDTO); // broadcast
 
                 // 1개의 방 대한 "발행" 횟수 — 구독자 수만큼 실제 전달된 건수는 아님!
