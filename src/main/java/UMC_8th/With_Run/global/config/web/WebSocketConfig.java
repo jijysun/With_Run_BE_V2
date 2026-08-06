@@ -56,34 +56,30 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.taskExecutor(stompOutboundTaskExecutor());
     }
 
-    // (2026-08-05) 풀 크기 튜닝 중단 —  세 값 모두 가 270~280대에서
-    // - 6/12: Threads Peak + Metric 수집 실패
-    // - 12/24: Threads Peak + Metric 수집 실패
-    // - 10/20: Threads Peak + Metric 수집 실패
-    // 결정적 변수는 아닌 듯
-    //
-    // 그래서 값은 Spring 기본값을 그대로 + 빈으로 직접 등록해 Micrometer 계측만
-    // - corePoolSize = 가용 프로세서 × 2 (Spring TaskExecutorRegistration 기본값과 동일)
-    // - setMaxPoolSize / setQueueCapacity는 의도적으로 호출하지 않음 = 큐 사이즈는 무제한이라 Spring 동작 그대로
-    // - allowCoreThreadTimeOut = true 역시 Spring 기본값과 동일
-    // 실제로 기본값이 재현됐는지는 Grafana "코어/맥스 PoolSize 설정 값" 패널로 직접 검증할 것
+    // (2026-08-06) 200VU 실측에서 인바운드 활성 스레드가 접속 버스트 구간에 정확히 10(=당시 core 상한)을 찍고
+    // 큐에 17이 쌓였다 — core 10이 그 순간엔 실제 제약이었다는 뜻. 정상 구간은 3~4개로 충분했지만,
+    // "core가 실제로 바인딩 조건이었는지"를 확인하기 위해 10→12로만 올려 재측정한다.
+    // (12에서도 활성 최대가 10 언저리면 10으로 충분했던 것, 11~12까지 차면 10이 부족했던 것 — 어느 쪽이든 해석 가능)
+    // 아웃바운드는 200VU에서 활성/큐 모두 사실상 0이었으므로 배포본(12/36) 그대로 두고 인바운드만 단일 변수로 바꾼다.
     @Bean
     public ThreadPoolTaskExecutor stompInboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(Runtime.getRuntime().availableProcessors() * 2);
-        executor.setAllowCoreThreadTimeOut(true);
+        executor.setCorePoolSize(12);
+        executor.setMaxPoolSize(24);
+        executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("stomp-inbound-");
         executor.initialize();
         ExecutorServiceMetrics.monitor(meterRegistry, executor.getThreadPoolExecutor(), "stomp.inbound");
         return executor;
     }
 
-    // 아웃바운드도 동일하게 Spring 기본값 재현 + 계측만 부착
+    // 이번 회차 미변경(단일 변수 유지) — 200VU에서 활성 스레드·큐가 모두 0에 가까워 조정 근거가 없음.
     @Bean
     public ThreadPoolTaskExecutor stompOutboundTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(Runtime.getRuntime().availableProcessors() * 2);
-        executor.setAllowCoreThreadTimeOut(true);
+        executor.setCorePoolSize(12);
+        executor.setMaxPoolSize(36);
+        executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("stomp-outbound-");
         executor.initialize();
         ExecutorServiceMetrics.monitor(meterRegistry, executor.getThreadPoolExecutor(), "stomp.outbound");
