@@ -109,17 +109,17 @@ public class MessageServiceImplV2 implements MessageService {
         // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회 = userId 위조 가능
         // User/Profile을 Caffeine 캐시(userCache/profileCache, 서로 다른 TTL)로 분리 조회 —
         // Cache Hit = SQL 자체가 안나감, 로그가 나가도 SQL이 발생한 건 아님.
-        log.info("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): User (email={})", authenticatedEmail);
+        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): User (email={})", authenticatedEmail);
         User user = userService.getCachedUser(authenticatedEmail);
-        log.info("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): Profile (userId={})", user.getId());
+        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): Profile (userId={})", user.getId());
         Profile profile = userService.getCachedProfile(user.getId());
 
-        log.info("SELECT 시도 (existsById) -> chatting(): (chatId:{})", chatId);
+        log.debug("SELECT 시도 (existsById) -> chatting(): (chatId:{})", chatId);
         if (!chatRepository.existsChatById(chatId)){
             throw new ChatHandler(ErrorCode.WRONG_CHAT);
         }
 
-        log.info("SQL 발생! -> chatting(): Get Chat (chatId={})", chatId);
+        log.debug("SQL 발생! -> chatting(): Get Chat (chatId={})", chatId);
 //        Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
         Chat chat = chatRepository.getReferenceById(chatId);
 
@@ -130,10 +130,10 @@ public class MessageServiceImplV2 implements MessageService {
 
 
         // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
-        log.info("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
+        log.debug("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
 
-        log.info("Redis PipeLine I/O 발생! -> chatting(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
+        log.debug("Redis PipeLine I/O 발생! -> chatting(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
         // SessionCallback: RedisConnection을 직접 다루지 않고, RedisOperations의 타입-세이프 API(execute(script, keys, args)) 사용 가능!
         redisTemplate.executePipelined(new SessionCallback<Object>() { // pipeLined = RTT 개선 부여
             @Override
@@ -150,11 +150,11 @@ public class MessageServiceImplV2 implements MessageService {
 
         // 3. 메세지 저장
         // - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
-        log.info("SQL 발생! -> chatting(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
+        log.debug("SQL 발생! -> chatting(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
         messageRepository.saveAll(messageList);
 //        chat.updateLastReceivedMsg(reqDTO.getMessage());
         String chatKey = "chat:" + chatId;
-        log.info("Redis I/O 발생! -> chatting(): HPUT (key={}, field=lastReceivedMsg, value={})", chatKey, reqDTO.getMessage());
+        log.debug("Redis I/O 발생! -> chatting(): HPUT (key={}, field=lastReceivedMsg, message)", chatKey);
         redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", reqDTO.getMessage());
         redisSyncScheduler.markingDirtyChat(chatKey);
 
@@ -168,7 +168,7 @@ public class MessageServiceImplV2 implements MessageService {
                 .build();
 
         String publishTopic = "redis.chat.msg." + chatId;
-        log.info("Redis I/O 발생! -> chatting(): PUBLISH (topic={})", publishTopic);
+        log.debug("Redis I/O 발생! -> chatting(): PUBLISH (topic={})", publishTopic);
         redisPublisher.publishMsg(publishTopic, payloadDTO);
 
         Counter.builder("chat_messages_sent_total")
