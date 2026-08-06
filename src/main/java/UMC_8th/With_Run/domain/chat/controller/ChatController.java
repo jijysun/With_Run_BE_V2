@@ -134,7 +134,10 @@ public class ChatController {
                                                    Principal principal) {
         // principal == StompChannelInterceptor가 CONNECT 시점에 검증해 세션에 심어둔 Authentication.
         // getName()은 JWT의 sub(email) — reqDTO.getUserId()는 클라이언트 위조가 가능
-        messageService.chatting(chatId, reqDTO, principal.getName());
+        // MySQL(persistMessage, @Transactional)과 Redis(publishToRedis) 단계를 분리 호출 —
+        // 트랜잭션이 끝나(=DB 커넥션 반납) 뒤에 Redis I/O를 실행해, 커넥션 점유 시간에서 Redis 왕복을 제외한다.
+        var result = messageService.persistMessage(chatId, reqDTO, principal.getName());
+        messageService.publishToRedis(chatId, result);
 //        messageServiceImpl.chattingWithChatGPT(chatId, reqDTO);
         return StndResponse.onSuccess(null, SuccessCode.CHATTING_SUCCESS);
     }

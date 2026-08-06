@@ -5,6 +5,7 @@ import UMC_8th.With_Run.domain.chat.converter.MessageConverter;
 import UMC_8th.With_Run.domain.chat.converter.UserChatConverter;
 import UMC_8th.With_Run.domain.chat.dto.ChatRequestDTO;
 import UMC_8th.With_Run.domain.chat.dto.GPTDTO;
+import UMC_8th.With_Run.domain.chat.dto.MessagePersistResultDTO;
 import UMC_8th.With_Run.domain.chat.entity.Chat;
 import UMC_8th.With_Run.domain.chat.entity.Message;
 import UMC_8th.With_Run.domain.chat.entity.mapping.UserChat;
@@ -27,9 +28,9 @@ import UMC_8th.With_Run.domain.user.repository.UserRepository;
 import UMC_8th.With_Run.domain.user.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,12 +71,25 @@ public class MessageServiceImplV2 implements MessageService {
     @Value("${chatgpt.api.uri}")
     private String API_URI;
 
+    // register() 비용(Meter.Id 생성 + 레지스트리 조회)을 메시지마다 반복하지 않도록 필드로 한 번만 등록.
+    private Timer chatMessageProcessingTimer;
+
+    @PostConstruct
+    private void initMetrics() {
+        chatMessageProcessingTimer = Timer.builder("chat_message_processing_seconds")
+                .description("persistMessage() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
+                .register(meterRegistry);
+    }
+
 
     /**
      *
-     * 본격 채팅 메서드
-     * - 쿼리 발생: JWT 인증, User 조회, Chat 조회, UserChatList 조회, MessageRepository.saveAll() = 약 5번
-     * - Redis 접근 발생: 118, 125줄 + stringRedisTemplate.convertAndSend(topic, msg);
+     * 채팅 메서드 — MySQL 단계(persistMessage) / Redis 단계(publishToRedis)로 분리.
+     * Controller(ChatController.chattingWithRedis)가 두 메서드를 순차 호출한다.
+     * 이유: 같은 메서드 안에서 @Transactional을 걸면 Redis I/O(왕복 4~5회) 동안 DB 커넥션을 계속 붙잡게 되어
+     * (Hibernate 기본 커넥션 모드 DELAYED_ACQUISITION_AND_HOLD = 트랜잭션 종료 시점에 반납) HikariCP 풀이 빨리 고갈됨.
+     * persistMessage()가 반환(=트랜잭션 종료=커넥션 반납)한 뒤에 publishToRedis()를 호출해 점유 시간을 최소화한다.
+     * (AFTER_COMMIT 이벤트 리스너 방식은 커넥션 반납 이전에 실행되어 이 문제를 해결하지 못함 — 검토 후 기각.)
      *
      * 추가 예정 기능
      * 1. 같이 산책 코스 약속을 잡은 경우, isUpToMeet -> AI
@@ -100,26 +114,26 @@ public class MessageServiceImplV2 implements MessageService {
      */
     @Override
     @Transactional
-    public void chatting(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO, String authenticatedEmail) {
+    public MessagePersistResultDTO persistMessage(Long chatId, ChatRequestDTO.ChattingReqDTO reqDTO, String authenticatedEmail) {
         // 서버 사이드 순수 처리시간( 수신 ~ Redis publish 완료)만 측정
         // — 클라이언트-서버 왕복(k6 correlation ID)과 구분해서, 병목이 서버 처리 자체인지 네트워크 왕복인 지 확인할 수 있게끔.
-        // chatId 별 태그는 넣지 않음 — 방이 수백 개로 늘면 Prometheus 카디널리티가 폭발!
+        // publishToRedis() 종료 시점에 stop — 두 단계를 합친 것이 실제 "서버 처리시간".
         Timer.Sample sample = Timer.start(meterRegistry);
 
         // 발신자 조회: reqDTO.getUserId() ->  STOMP CONNECT에서 검증된 authenticatedEmail로만 조회 = userId 위조 가능
         // User/Profile을 Caffeine 캐시(userCache/profileCache, 서로 다른 TTL)로 분리 조회 —
         // Cache Hit = SQL 자체가 안나감, 로그가 나가도 SQL이 발생한 건 아님.
-        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): User (email={})", authenticatedEmail);
+        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> persistMessage(): User (email={})", authenticatedEmail);
         User user = userService.getCachedUser(authenticatedEmail);
-        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> chatting(): Profile (userId={})", user.getId());
+        log.debug("SELECT 시도(Cache HIT 시 SQL 생략) -> persistMessage(): Profile (userId={})", user.getId());
         Profile profile = userService.getCachedProfile(user.getId());
 
-        log.debug("SELECT 시도 (existsById) -> chatting(): (chatId:{})", chatId);
+        log.debug("SELECT 시도 (existsById) -> persistMessage(): (chatId:{})", chatId);
         if (!chatRepository.existsChatById(chatId)){
             throw new ChatHandler(ErrorCode.WRONG_CHAT);
         }
 
-        log.debug("SQL 발생! -> chatting(): Get Chat (chatId={})", chatId);
+        log.debug("SQL 발생! -> persistMessage(): Get Chat (chatId={})", chatId);
 //        Chat chat = chatRepository.findById(chatId).orElseThrow(() -> new ChatHandler(ErrorCode.EMPTY_CHAT_LIST));
         Chat chat = chatRepository.getReferenceById(chatId);
 
@@ -128,12 +142,22 @@ public class MessageServiceImplV2 implements MessageService {
         List<Message> messageList = new ArrayList<>();
         messageList.add(msg);
 
-
-        // 2. 안읽은 메세지 기능, 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
-        log.debug("SQL 발생! -> chatting(): SELECT UserChatList (chatId={})", chatId);
+        // 안읽은 메세지 기능 대상자 목록 — 실제 increment(Redis)는 publishToRedis()에서 처리.
+        log.debug("SQL 발생! -> persistMessage(): SELECT UserChatList (chatId={})", chatId);
         List<Long> userChatList = userChatRepository.findAllByChat_Id(chatId);
 
-        log.debug("Redis PipeLine I/O 발생! -> chatting(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
+        log.debug("SQL 발생! -> persistMessage(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
+        messageRepository.saveAll(messageList);
+//        chat.updateLastReceivedMsg(reqDTO.getMessage());
+
+        return new MessagePersistResultDTO(user.getId(), profile, msg, userChatList, sample);
+    }
+
+    @Override
+    public void publishToRedis(Long chatId, MessagePersistResultDTO result) {
+        // 안읽은 메세지 카운팅: 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
+        List<Long> userChatList = result.userChatList();
+        log.debug("Redis PipeLine I/O 발생! -> publishToRedis(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
         // SessionCallback: RedisConnection을 직접 다루지 않고, RedisOperations의 타입-세이프 API(execute(script, keys, args)) 사용 가능!
         redisTemplate.executePipelined(new SessionCallback<Object>() { // pipeLined = RTT 개선 부여
             @Override
@@ -147,15 +171,9 @@ public class MessageServiceImplV2 implements MessageService {
             }
         });
 
-
-        // 3. 메세지 저장
-        // - messageRepository.saveAll() + redisPublisher.publishMsg = mysql 저장 및 Redis 발행
-        log.debug("SQL 발생! -> chatting(): INSERT Message (chatId={}, userId={})", chatId, user.getId());
-        messageRepository.saveAll(messageList);
-//        chat.updateLastReceivedMsg(reqDTO.getMessage());
         String chatKey = "chat:" + chatId;
-        log.debug("Redis I/O 발생! -> chatting(): HPUT (key={}, field=lastReceivedMsg, message)", chatKey);
-        redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", reqDTO.getMessage());
+        log.debug("Redis I/O 발생! -> publishToRedis(): HPUT (key={}, field=lastReceivedMsg, message)", chatKey);
+        redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", result.message().getMsg());
         redisSyncScheduler.markingDirtyChat(chatKey);
 
         PayloadDTO<Object> payloadDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
@@ -163,21 +181,14 @@ public class MessageServiceImplV2 implements MessageService {
                 // user.getProfile()은 더 이상 쓰면 안 됨 — user가 findByEmail(join fetch 없음)로 조회됨
                 // + profile은 지연 로딩 프록시고, 캐시로 재사용되는 detached 상태라 세션이 없어 LazyInitializationException이 남.
                 // 대신 별도로 캐시 조회한 profile을 그대로 사용.
-//                .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, user.getProfile(), msg))
-                .payload(MessageConverter.toBroadCastMsgDTO(user.getId(), chatId, profile, msg))
+                .payload(MessageConverter.toBroadCastMsgDTO(result.userId(), chatId, result.profile(), result.message()))
                 .build();
 
         String publishTopic = "redis.chat.msg." + chatId;
-        log.debug("Redis I/O 발생! -> chatting(): PUBLISH (topic={})", publishTopic);
+        log.debug("Redis I/O 발생! -> publishToRedis(): PUBLISH (topic={})", publishTopic);
         redisPublisher.publishMsg(publishTopic, payloadDTO);
 
-        Counter.builder("chat_messages_sent_total")
-                .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 채팅 메시지 수")
-                .register(meterRegistry)
-                .increment();
-        sample.stop(Timer.builder("chat_message_processing_seconds")
-                .description("chatting() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
-                .register(meterRegistry));
+        result.sample().stop(chatMessageProcessingTimer);
     }
 
     private GPTDTO.GPTAnswerDTO requestToAI(ChatRequestDTO.ChattingReqDTO reqDTO) {
@@ -228,9 +239,6 @@ public class MessageServiceImplV2 implements MessageService {
     @Override
     @Transactional
     public void shareCourse(ChatRequestDTO.ShareReqDTO reqDTO) { /// 여려 명 공유 시 채팅방 공유 로직, 카카오톡 공유 화면 참고!
-        // chatting()과 동일한 계측 패턴 — 앞으로 주 테스트 시나리오에 shareCourse() 호출이 추가될 예정이라 미리 부착.
-        Timer.Sample sample = Timer.start(meterRegistry);
-
         User user = userRepository.findById(reqDTO.getUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
         Course course = courseRepository.findById(reqDTO.getCourseId()).orElseThrow(() -> new CourseHandler(ErrorCode.WRONG_COURSE)); // 에러 코드 바꾸기
 
@@ -264,13 +272,6 @@ public class MessageServiceImplV2 implements MessageService {
             redisTemplate.opsForHash().put(shareChatKey, "lastReceivedMsg", "산책 코스를 공유하였습니다");
             redisSyncScheduler.markingDirtyChat(shareChatKey);
             redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
-            Counter.builder("chat_share_sent_total")
-                    .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
-                    .register(meterRegistry)
-                    .increment();
-            sample.stop(Timer.builder("chat_share_processing_seconds")
-                    .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
-                    .register(meterRegistry));
         } else { // 친구를 통한 공유, 채팅이 없는 경우 추가
             User targetUser = userRepository.findById(reqDTO.getTargetUserId()).orElseThrow(() -> new UserHandler(ErrorCode.WRONG_USER));
             Chat privateChat = chatRepository.findPrivateChat(user.getId(), targetUser.getId());
@@ -311,13 +312,6 @@ public class MessageServiceImplV2 implements MessageService {
 
                 // 메세지 BroadCast
                 redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
-                Counter.builder("chat_share_sent_total")
-                        .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
-                        .register(meterRegistry)
-                        .increment();
-                sample.stop(Timer.builder("chat_share_processing_seconds")
-                        .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
-                        .register(meterRegistry));
             } else { // 친구 공유, 채팅이 존재하는 경우
                 Long privateChatId = privateChat.getId();
                 log.info("'shareCourse'/toFriend - privateChat is Not Null! id = {}", privateChatId);
@@ -351,13 +345,6 @@ public class MessageServiceImplV2 implements MessageService {
 
                 // 메세지 BroadCast
                 redisPublisher.publishMsg("redis.chat.share." + reqDTO.getChatId(), payloadDTO);
-                Counter.builder("chat_share_sent_total")
-                        .description("MySQL 저장 + Redis publish까지 성공적으로 완료된 산책 코스 공유 수")
-                        .register(meterRegistry)
-                        .increment();
-                sample.stop(Timer.builder("chat_share_processing_seconds")
-                        .description("shareCourse() 진입부터 Redis publish 완료까지 서버 처리 시간(네트워크 왕복 제외)")
-                        .register(meterRegistry));
             }
         }
 
