@@ -21,7 +21,7 @@ import java.util.*;
 public class RedisSyncScheduler {
 
     public static final String DIRTY_USER_CHAT_KEY = "dirty:user_chat_key:";
-    private static final String DIRTY_CHAT_KEY = "dirty:chat_key:";
+    public static final String DIRTY_CHAT_KEY = "dirty:chat_key:";
     private final RedisTemplate<String, Object> redisTemplate;
     private final ChatRepository chatRepository;
     private final UserChatRepository userChatRepository;

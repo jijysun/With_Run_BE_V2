@@ -58,7 +58,9 @@ public class MessageServiceImplV2 implements MessageService {
     private final MessageRepository messageRepository;
     private final RedisPublisher redisPublisher;
     private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // RedisPublisher와 동일한 Spring 관리 빈을 써야 함 — new ObjectMapper()는 JavaTimeModule이 없어
+    // PayloadDTO의 LocalDateTime(createdAt) 직렬화 시 InvalidDefinitionException이 남.
+    private final ObjectMapper objectMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
     private final RedisSyncScheduler redisSyncScheduler;
@@ -155,26 +157,9 @@ public class MessageServiceImplV2 implements MessageService {
 
     @Override
     public void publishToRedis(Long chatId, MessagePersistResultDTO result) {
-        // 안읽은 메세지 카운팅: 메세지에 따른 채팅방에 속한 유저에 대한 unReadMsg increment
         List<Long> userChatList = result.userChatList();
-        log.debug("Redis PipeLine I/O 발생! -> publishToRedis(): EVAL(unreadIncrement) × {}건, 파이프라인으로 1회 왕복 처리", userChatList.size());
-        // SessionCallback: RedisConnection을 직접 다루지 않고, RedisOperations의 타입-세이프 API(execute(script, keys, args)) 사용 가능!
-        redisTemplate.executePipelined(new SessionCallback<Object>() { // pipeLined = RTT 개선 부여
-            @Override
-            public Object execute(RedisOperations operations) {
-                userChatList.forEach(userChat -> {
-                    String key = "user:" + userChat + ":" + chatId;
-                    // .lua = 원자성 부여
-                    operations.execute(unreadIncrementScript, List.of(key, RedisSyncScheduler.DIRTY_USER_CHAT_KEY), "1");
-                });
-                return null;
-            }
-        });
-
         String chatKey = "chat:" + chatId;
-        log.debug("Redis I/O 발생! -> publishToRedis(): HPUT (key={}, field=lastReceivedMsg, message)", chatKey);
-        redisTemplate.opsForHash().put(chatKey, "lastReceivedMsg", result.message().getMsg());
-        redisSyncScheduler.markingDirtyChat(chatKey);
+        String publishTopic = "redis.chat.msg." + chatId;
 
         PayloadDTO<Object> payloadDTO = PayloadDTO.builder() // redis 처리 전용 dto 변환,
                 .type("chat")
@@ -184,9 +169,32 @@ public class MessageServiceImplV2 implements MessageService {
                 .payload(MessageConverter.toBroadCastMsgDTO(result.userId(), chatId, result.profile(), result.message()))
                 .build();
 
-        String publishTopic = "redis.chat.msg." + chatId;
-        log.debug("Redis I/O 발생! -> publishToRedis(): PUBLISH (topic={})", publishTopic);
-        redisPublisher.publishMsg(publishTopic, payloadDTO);
+        // PUBLISH할 JSON은 파이프라인 진입 전에 미리 직렬화 — SessionCallback.execute()는 checked exception을
+        // 던질 수 없어서(DataAccessException만 선언됨), JsonProcessingException은 여기서 먼저 처리해야 함.
+        String payloadJson;
+        try {
+            payloadJson = objectMapper.writeValueAsString(payloadDTO);
+        } catch (JsonProcessingException e) {
+            throw new ChatHandler(ErrorCode.MSG_SERIALIZE_FAIL);
+        }
+
+        log.debug("Redis PipeLine I/O 발생! -> publishToRedis(): EVAL(unreadIncrement) × {}건 + HPUT + SADD + PUBLISH, 파이프라인으로 1회 왕복 처리", userChatList.size());
+        // SessionCallback: RedisConnection을 직접 다루지 않고, RedisOperations의 타입-세이프 API(execute(script, keys, args)) 사용 가능!
+        redisTemplate.executePipelined(new SessionCallback<Object>() { // pipeLined = RTT 개선 부여
+            @Override
+            public Object execute(RedisOperations operations) {
+                userChatList.forEach(userChat -> {
+                    String key = "user:" + userChat + ":" + chatId;
+                    // .lua = 원자성 부여
+                    operations.execute(unreadIncrementScript, List.of(key, RedisSyncScheduler.DIRTY_USER_CHAT_KEY), "1");
+                });
+
+                operations.opsForHash().put(chatKey, "lastReceivedMsg", result.message().getMsg());
+                operations.opsForSet().add(RedisSyncScheduler.DIRTY_CHAT_KEY, chatKey);
+                operations.convertAndSend(publishTopic, payloadJson);
+                return null;
+            }
+        });
 
         result.sample().stop(chatMessageProcessingTimer);
     }
